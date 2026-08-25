@@ -1,0 +1,1826 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Trænerlog</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#20303A">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#20303A;
+    --ink-soft:#425362;
+    --paper:#E9E2CF;
+    --card:#FBF7EC;
+    --card-line:rgba(32,48,58,0.10);
+    --brass:#C79A3E;
+    --brass-deep:#9C7526;
+    --forest:#3F6B4A;
+    --forest-soft:#E1EBE0;
+    --rust:#A6472F;
+    --rust-soft:#F3E1DA;
+    --shadow: 0 2px 6px rgba(32,48,58,0.10), 0 1px 0 rgba(32,48,58,0.04);
+    --radius: 16px;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color: transparent;}
+  html,body{margin:0; padding:0; background:var(--paper); color:var(--ink); font-family:'Inter',sans-serif;}
+  body{
+    min-height:100vh;
+    display:flex; justify-content:center;
+  }
+  .app{
+    width:100%; max-width:480px; min-height:100vh;
+    display:flex; flex-direction:column;
+    background:var(--paper);
+    position:relative;
+  }
+  /* subtle canvas texture */
+  .app::before{
+    content:''; position:fixed; inset:0; pointer-events:none; opacity:.5;
+    background-image:
+      radial-gradient(rgba(32,48,58,0.035) 1px, transparent 1px);
+    background-size: 14px 14px;
+    z-index:0;
+  }
+
+  header.topbar{
+    position:relative; z-index:1;
+    padding: calc(env(safe-area-inset-top,0px) + 18px) 20px 16px;
+    background: var(--ink);
+    color: var(--paper);
+    border-bottom: 4px solid var(--brass);
+    display:flex; align-items:center; gap:12px;
+  }
+  header.topbar .paw{ width:34px; height:34px; flex:none; color:var(--brass); }
+  header.topbar h1{
+    font-family:'Baloo 2', sans-serif;
+    font-weight:800; font-size:22px; letter-spacing:.02em; margin:0;
+    text-transform:uppercase;
+  }
+  header.topbar .sub{
+    font-family:'JetBrains Mono', monospace; font-size:12px; color:#C9BFA6; margin-top:2px;
+  }
+
+  main#view{
+    flex:1; z-index:1; position:relative;
+    padding: 18px 16px 90px;
+    overflow-y:auto;
+  }
+
+  nav.tabbar{
+    position:sticky; bottom:0; z-index:2;
+    display:flex; background:var(--ink);
+    padding: 6px 6px calc(env(safe-area-inset-bottom,0px) + 6px);
+    border-top: 1px solid rgba(255,255,255,0.08);
+  }
+  nav.tabbar button{
+    flex:1; background:none; border:none; color:#9AABB6;
+    display:flex; flex-direction:column; align-items:center; gap:3px;
+    padding:8px 4px; font-family:'Inter',sans-serif; font-size:11px; font-weight:600;
+    border-radius:12px; transition: color .15s, background .15s;
+  }
+  nav.tabbar button svg{ width:20px; height:20px; }
+  nav.tabbar button.active{ color:var(--brass); background:rgba(199,154,62,0.12); }
+
+  h2.section-title{
+    font-family:'Baloo 2',sans-serif; font-size:19px; font-weight:700; margin: 4px 0 12px;
+    display:flex; align-items:center; gap:8px;
+  }
+  h2.section-title .count{
+    font-family:'JetBrains Mono',monospace; font-size:12px; font-weight:600;
+    color:var(--ink-soft); background:var(--card); padding:2px 8px; border-radius:20px;
+    border:1px solid var(--card-line);
+  }
+
+  .empty{
+    background:var(--card); border:1px dashed var(--brass); border-radius:var(--radius);
+    padding:22px 18px; text-align:center; color:var(--ink-soft); font-size:14px; line-height:1.5;
+  }
+  .empty strong{ display:block; color:var(--ink); font-family:'Baloo 2',sans-serif; font-size:16px; margin-bottom:4px; }
+
+  .card{
+    background:var(--card); border-radius:var(--radius); box-shadow:var(--shadow);
+    border:1px solid var(--card-line); padding:16px; margin-bottom:14px;
+  }
+  .card + .card{ margin-top:0; }
+
+  /* dog-tag chip: exercise checklist item */
+  .tag-item{
+    position:relative; display:flex; align-items:center; gap:10px;
+    background:var(--card); border-radius:14px; padding:12px 14px 12px 34px;
+    margin-bottom:9px; border:1px solid var(--card-line);
+    box-shadow: inset 0 0 0 1px rgba(32,48,58,0.02);
+    cursor:pointer; user-select:none; transition: background .2s, border-color .2s;
+  }
+  .tag-item::before{
+    content:''; position:absolute; left:12px; top:50%; transform:translateY(-50%);
+    width:9px; height:9px; border-radius:50%; border:2px solid var(--brass-deep); background:var(--paper);
+  }
+  .tag-item .name{ font-weight:600; font-size:14.5px; flex:1; }
+  .tag-item .note{ font-size:12px; color:var(--ink-soft); display:block; font-weight:400; margin-top:1px; }
+  .tag-item.has-img{ padding-left:56px; }
+  .tag-item .thumb{
+    position:absolute; left:10px; top:50%; transform:translateY(-50%);
+    width:36px; height:36px; border-radius:9px; object-fit:cover; border:2px solid var(--brass-deep);
+  }
+  .tag-item .stamp{
+    font-family:'Baloo 2',sans-serif; font-weight:700; font-size:11px; color:var(--forest);
+    opacity:0; transform: scale(2) rotate(-18deg); transition: all .25s cubic-bezier(.34,1.56,.64,1);
+    border:2px solid var(--forest); border-radius:8px; padding:1px 6px; text-transform:uppercase;
+    letter-spacing:.03em;
+  }
+  .tag-item.done{ background:var(--forest-soft); border-color:rgba(63,107,74,0.25); }
+  .tag-item.done::before{ border-color:var(--forest); background:var(--forest); }
+  .tag-item.done .stamp{ opacity:1; transform: scale(1) rotate(-8deg); }
+  .tag-item.done .name{ color:var(--forest); }
+
+  .session-card .time-badge{
+    font-family:'JetBrains Mono',monospace; font-weight:600; font-size:13px;
+    background:var(--ink); color:var(--brass); padding:4px 10px; border-radius:8px; display:inline-block;
+    margin-bottom:10px;
+  }
+  .session-card .progress{
+    font-size:12px; color:var(--ink-soft); margin: 8px 0 4px; font-weight:500;
+  }
+  .session-card .progress-bar{
+    height:6px; background:rgba(32,48,58,0.08); border-radius:6px; overflow:hidden; margin-bottom:12px;
+  }
+  .session-card .progress-fill{ height:100%; background:var(--forest); transition:width .3s; }
+
+  textarea, input[type=text], input[type=date], input[type=time]{
+    width:100%; font-family:'Inter',sans-serif; font-size:14px; padding:10px 12px;
+    border-radius:10px; border:1px solid var(--card-line); background:var(--paper); color:var(--ink);
+  }
+  textarea{ min-height:64px; resize:vertical; }
+  label.field-label{ display:block; font-size:12px; font-weight:700; color:var(--ink-soft); margin: 12px 0 5px; text-transform:uppercase; letter-spacing:.03em; }
+
+  .btn{
+    font-family:'Baloo 2',sans-serif; font-weight:700; font-size:14px; letter-spacing:.01em;
+    border:none; border-radius:12px; padding:12px 16px; cursor:pointer; width:100%;
+    display:flex; align-items:center; justify-content:center; gap:8px;
+    transition: transform .1s, filter .15s;
+  }
+  .btn:active{ transform: scale(.98); }
+  .btn-primary{ background:var(--brass); color:var(--ink); }
+  .btn-primary:hover{ filter:brightness(1.05); }
+  .btn-ghost{ background:transparent; color:var(--ink-soft); border:1px solid var(--card-line); }
+  .btn-danger{ background:var(--rust-soft); color:var(--rust); }
+  .btn-small{ padding:8px 12px; font-size:12.5px; width:auto; }
+  .row-buttons{ display:flex; gap:8px; margin-top:12px; }
+  .row-buttons .btn{ flex:1; }
+
+  .chip-select{
+    display:flex; flex-wrap:wrap; gap:8px; margin-bottom:6px;
+  }
+  .chip-select .chip{
+    font-size:13px; font-weight:600; padding:8px 12px; border-radius:20px;
+    border:1.5px solid var(--card-line); background:var(--card); cursor:pointer; user-select:none;
+  }
+  .chip-select .chip.selected{ background:var(--brass); border-color:var(--brass-deep); color:var(--ink); }
+  .chip-select .chip{ display:inline-flex; align-items:center; }
+  .chip-select .chip img.chip-thumb{ width:16px; height:16px; border-radius:4px; object-fit:cover; margin-right:6px; }
+
+  .quick-log-toggle{
+    display:flex; align-items:center; justify-content:center; gap:8px;
+    background:var(--card); border:1.5px dashed var(--brass); border-radius:14px;
+    padding:12px; margin-bottom:14px; cursor:pointer; font-family:'Baloo 2',sans-serif;
+    font-weight:700; font-size:14px; color:var(--brass-deep);
+  }
+
+  .lib-item{
+    display:flex; align-items:flex-start; gap:10px; background:var(--card);
+    border-radius:14px; padding:12px 14px; margin-bottom:9px; border:1px solid var(--card-line);
+  }
+  .lib-item .lib-main{ flex:1; }
+  .lib-item .lib-main .name{ font-weight:700; font-size:14.5px; }
+  .lib-item .lib-main .note{ font-size:12.5px; color:var(--ink-soft); margin-top:2px; }
+  .lib-item button{ background:none; border:none; color:var(--ink-soft); cursor:pointer; padding:4px; }
+  .lib-item button:hover{ color:var(--rust); }
+  .lib-photo-slot{ position:relative; flex:none; }
+  .lib-photo{ width:48px; height:48px; border-radius:10px; object-fit:cover; border:1px solid var(--card-line); display:block; cursor:pointer; }
+  .lib-photo-btn{
+    width:48px; height:48px; border-radius:10px; flex:none; border:1.5px dashed var(--brass);
+    background:var(--paper); color:var(--brass-deep); display:flex; align-items:center; justify-content:center;
+    cursor:pointer; font-size:20px; font-weight:700;
+  }
+  .lib-photo-remove{
+    position:absolute; top:-6px; right:-6px; width:18px; height:18px; border-radius:50%;
+    background:var(--rust); color:#fff; border:none; font-size:11px; line-height:1; cursor:pointer;
+    display:flex; align-items:center; justify-content:center; padding:0;
+  }
+  .new-photo-preview{ width:64px; height:64px; border-radius:12px; object-fit:cover; border:1px solid var(--card-line); margin-top:4px; }
+
+  .cat-pill{
+    display:inline-block; background:var(--paper); color:var(--brass-deep); border:1px solid var(--brass);
+    border-radius:20px; padding:2px 9px; font-size:11px; font-weight:700; margin:2px 4px 2px 0;
+  }
+  .cat-edit-btn{
+    background:none; border:none; color:var(--brass-deep); font-size:11px; font-weight:700;
+    cursor:pointer; padding:2px 4px; width:auto !important;
+  }
+  .lib-cats-row{ margin-top:6px; display:flex; flex-wrap:wrap; align-items:center; gap:2px; }
+  .fav-star{
+    background:none; border:none; font-size:19px; line-height:1; color:rgba(32,48,58,0.18);
+    cursor:pointer; padding:4px; width:auto !important; flex:none;
+  }
+  .fav-star.active{ color:var(--brass); }
+
+  .upcoming-row{
+    display:flex; align-items:center; gap:10px; background:var(--card); border:1px solid var(--card-line);
+    border-radius:14px; padding:12px 14px; margin-bottom:9px; cursor:pointer;
+  }
+  .upcoming-row .date-block{
+    font-family:'JetBrains Mono',monospace; text-align:center; background:var(--ink); color:var(--brass);
+    border-radius:8px; padding:6px 8px; font-size:11px; font-weight:600; line-height:1.2; flex:none; min-width:52px;
+  }
+  .upcoming-row .info{ flex:1; }
+  .upcoming-row .info .t{ font-weight:600; font-size:14px; }
+  .upcoming-row .info .ex{ font-size:12px; color:var(--ink-soft); margin-top:2px; }
+  .upcoming-row.missed{ border-color:rgba(166,71,47,0.35); }
+  .upcoming-row.missed .date-block{ background:var(--rust); color:#fff; }
+
+  .log-entry{
+    background:var(--card); border-radius:14px; padding:14px; margin-bottom:10px; border:1px solid var(--card-line);
+  }
+  .log-entry .head{ display:flex; justify-content:space-between; align-items:baseline; margin-bottom:6px; }
+  .log-entry .head .d{ font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--ink-soft); }
+  .log-entry .exlist{ font-size:13px; color:var(--ink); margin-bottom:6px; }
+  .log-entry .exlist span.pill{
+    display:inline-block; background:var(--forest-soft); color:var(--forest); border-radius:10px;
+    padding:2px 8px; font-size:11.5px; font-weight:600; margin:2px 3px 0 0;
+  }
+  .log-entry .notes{ font-size:13px; color:var(--ink-soft); font-style:italic; border-left:3px solid var(--brass); padding-left:8px; }
+  .entry-actions{ display:flex; gap:2px; flex:none; }
+  .entry-action-btn{
+    background:none; border:none; font-size:14px; cursor:pointer; padding:4px 6px;
+    line-height:1; color:var(--ink-soft); border-radius:6px;
+  }
+  .entry-action-btn:hover{ background:rgba(32,48,58,0.06); color:var(--ink); }
+  .entry-action-btn.danger:hover{ color:var(--rust); }
+
+  .toast{
+    position:fixed; bottom:80px; left:50%; transform:translateX(-50%) translateY(10px);
+    background:var(--ink); color:var(--paper); padding:10px 18px; border-radius:20px; font-size:13px;
+    font-weight:600; box-shadow:var(--shadow); opacity:0; transition:opacity .2s, transform .2s; z-index:10;
+    pointer-events:none;
+  }
+  .toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+
+  ::placeholder{ color:#9AA6AD; }
+  .storage-note{ font-size:11px; color:var(--rust); background:var(--rust-soft); border-radius:8px; padding:6px 10px; margin-bottom:12px; }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <svg class="paw" viewBox="0 0 24 24" fill="currentColor"><ellipse cx="12" cy="15.5" rx="6" ry="5"/><ellipse cx="5.2" cy="9" rx="2.3" ry="3"/><ellipse cx="18.8" cy="9" rx="2.3" ry="3"/><ellipse cx="8.7" cy="4.8" rx="2" ry="2.6"/><ellipse cx="15.3" cy="4.8" rx="2" ry="2.6"/></svg>
+    <div>
+      <h1>Trænerlog</h1>
+      <div class="sub" id="todayDate"></div>
+    </div>
+  </header>
+
+  <main id="view"></main>
+
+  <nav class="tabbar">
+    <button data-tab="today" class="active">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
+      I dag
+    </button>
+    <button data-tab="plan">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v4M16 3v4"/></svg>
+      Planlæg
+    </button>
+    <button data-tab="library">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h11a3 3 0 0 1 3 3v13H7a3 3 0 0 1-3-3V4z"/><path d="M8 8h6"/></svg>
+      Øvelser
+    </button>
+    <button data-tab="log">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
+      Log
+    </button>
+  </nav>
+  <div class="toast" id="toast"></div>
+</div>
+
+<script>
+/* ---------- storage layer ----------
+   1) window.storage — used automatically when running inside a Claude.ai artifact
+   2) localStorage — used automatically when opened as a standalone file in a normal browser
+      (e.g. saved to a phone and opened directly), so data still persists between visits
+   3) in-memory — last-resort fallback if neither is available (e.g. private browsing) */
+const memoryStore = {};
+let usingFallback = false; // true only if we've fallen all the way back to in-memory (data won't survive a reload)
+const LOCAL_PREFIX = 'traenerlog:';
+
+async function storeGet(key){
+  if(window.storage){
+    try{ const r = await window.storage.get(key, false); return r ? JSON.parse(r.value) : null; }
+    catch(e){ return null; }
+  }
+  try{
+    const raw = localStorage.getItem(LOCAL_PREFIX + key);
+    return raw !== null ? JSON.parse(raw) : null;
+  } catch(e){
+    usingFallback = true;
+    return memoryStore[key] !== undefined ? memoryStore[key] : null;
+  }
+}
+async function storeSet(key, value){
+  if(window.storage){
+    try{ await window.storage.set(key, JSON.stringify(value), false); return; }
+    catch(e){ /* fall through to localStorage/memory */ }
+  }
+  try{
+    localStorage.setItem(LOCAL_PREFIX + key, JSON.stringify(value));
+    return;
+  } catch(e){
+    usingFallback = true;
+    memoryStore[key] = value;
+  }
+}
+
+/* ---------- state ---------- */
+let exercises = [];   // {id, name, note, image, categories, favorite}
+let sessions = [];    // {id, date, time, exerciseIds:[], doneIds:[], completed, notes, completedAt}
+let activities = [];  // {id, date, time, type, note, image, createdAt} — non-training dog activities
+let diaryEntries = []; // {id, date, time, text, createdAt} — free-text observations
+let healthEntries = []; // {id, date, time, type, weightKg, note, createdAt}
+let activeTab = 'today';
+let planEditingId = null; // session currently being edited in Plan tab, or null for "new"
+let quickEntryOpen = false;
+let quickEntryKind = null; // 'training' | 'activity' | 'diary' | 'health'
+let quickLogSelected = [];
+let quickActivityPhoto = null; // temp photo for the activity quick-entry form
+let newExercisePhoto = null; // data URL for the "add exercise" form, before saving
+let photoTargetExerciseId = null; // which existing exercise the hidden file input is currently targeting
+let logPeriod = 'week'; // 'week' | 'month' | 'year' — controls the Log tab's visual summary
+let monthOffset = 0; // 0 = current month, -1 = previous month, etc.
+let yearOffset = 0;  // 0 = current year, -1 = previous year, etc.
+let logTypeFilter = 'all'; // 'all' | 'training' | 'activity' | 'diary' | 'health' — filters the combined Log timeline
+let logSearchTerm = ''; // free-text search across all logged notes
+let editingLogEntry = null; // { kind, id } of the entry currently being edited in the Log tab, or null
+let editingActivityPhoto = undefined; // temp photo state while editing an activity entry (undefined = not editing)
+let libraryCategoryFilter = null; // selected theme filter in the Library tab, null = show all
+let librarySearch = '';           // search text in the Library tab
+let libEditingCatsId = null;      // id of the exercise whose theme editor is currently open
+let manageCategoriesOpen = false; // whether the "manage themes" panel is expanded in the Library tab
+let deletedCategoryNames = [];    // lowercased default-suggestion names the user has explicitly removed
+
+const DEFAULT_ACTIVITY_TYPES = ['Børstet','Hundeskov','Legeaftale','Badet','Dyrlæge','Klippet negle'];
+function getAllActivityTypes(){
+  const set = new Set(DEFAULT_ACTIVITY_TYPES);
+  activities.forEach(a => a.type && set.add(a.type));
+  return Array.from(set).sort((a,b)=> a.localeCompare(b,'da'));
+}
+const DEFAULT_HEALTH_TYPES = ['Vægt','Dyrlægebesøg','Vaccination','Klippet negle','Andet'];
+function getAllHealthTypes(){
+  const set = new Set(DEFAULT_HEALTH_TYPES);
+  healthEntries.forEach(h => h.type && set.add(h.type));
+  return Array.from(set).sort((a,b)=> a.localeCompare(b,'da'));
+}
+function singleSelectPickerHtml(containerId, selectedValue, options, placeholder){
+  const extra = (selectedValue && !options.includes(selectedValue)) ? [selectedValue] : [];
+  const all = [...options, ...extra];
+  return `<div class="chip-select" id="${containerId}" data-mode="single">
+    ${all.map(t=>`<div class="chip ${t===selectedValue?'selected':''}" data-type="${escapeHtml(t)}">${escapeHtml(t)}</div>`).join('')}
+  </div>
+  <div style="display:flex;gap:8px;margin-top:6px;">
+    <input type="text" class="type-custom-input" data-target="${containerId}" placeholder="${placeholder}">
+    <button class="btn btn-ghost btn-small type-custom-add" data-target="${containerId}" style="width:auto;white-space:nowrap;">Tilføj</button>
+  </div>`;
+}
+function activityTypePickerHtml(containerId, selectedType){
+  return singleSelectPickerHtml(containerId, selectedType, getAllActivityTypes(), 'Skriv ny aktivitetstype...');
+}
+function healthTypePickerHtml(containerId, selectedType){
+  return singleSelectPickerHtml(containerId, selectedType, getAllHealthTypes(), 'Skriv ny type...');
+}
+function bindActivityTypePickerEvents(scopeEl){
+  const selectOnly = (container, chip) => {
+    container.querySelectorAll('.chip').forEach(c=>c.classList.remove('selected'));
+    chip.classList.add('selected');
+  };
+  scopeEl.querySelectorAll('.chip-select[data-mode="single"] .chip[data-type]').forEach(chip=>{
+    chip.addEventListener('click', ()=> selectOnly(chip.closest('.chip-select'), chip));
+  });
+  scopeEl.querySelectorAll('.type-custom-add').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const targetId = btn.dataset.target;
+      const input = scopeEl.querySelector(`.type-custom-input[data-target="${targetId}"]`);
+      const val = input.value.trim();
+      if(!val) return;
+      const container = document.getElementById(targetId);
+      const existing = Array.from(container.querySelectorAll('.chip')).find(c => c.dataset.type.toLowerCase() === val.toLowerCase());
+      if(existing){
+        selectOnly(container, existing);
+      } else {
+        const chip = document.createElement('div');
+        chip.className = 'chip selected';
+        chip.dataset.type = val;
+        chip.textContent = val;
+        chip.addEventListener('click', ()=> selectOnly(container, chip));
+        container.querySelectorAll('.chip').forEach(c=>c.classList.remove('selected'));
+        container.appendChild(chip);
+      }
+      input.value = '';
+    });
+  });
+}
+const DEFAULT_CATEGORY_SUGGESTIONS = ['Lydighed','Miljøtræning','Cirkustricks','Enrichment','Fokus','Impulskontrol'];
+function getAllCategories(){
+  const set = new Set(DEFAULT_CATEGORY_SUGGESTIONS.filter(c => !deletedCategoryNames.includes(c.toLowerCase())));
+  exercises.forEach(ex => (ex.categories||[]).forEach(c => set.add(c)));
+  return Array.from(set).sort((a,b)=> a.localeCompare(b,'da'));
+}
+async function deleteCategory(name){
+  deletedCategoryNames.push(name.toLowerCase());
+  await storeSet('deletedCategoryNames', deletedCategoryNames);
+  exercises.forEach(ex=>{
+    ex.categories = (ex.categories||[]).filter(c => c.toLowerCase() !== name.toLowerCase());
+  });
+  await saveExercises();
+  if(libraryCategoryFilter && libraryCategoryFilter.toLowerCase() === name.toLowerCase()){
+    libraryCategoryFilter = null;
+  }
+}
+function categoryPickerHtml(containerId, selectedCats){
+  const options = getAllCategories();
+  const extra = (selectedCats||[]).filter(c=>!options.includes(c));
+  const all = [...options, ...extra];
+  return `<div class="chip-select" id="${containerId}">
+    ${all.map(c=>`<div class="chip ${selectedCats.includes(c)?'selected':''}" data-cat="${escapeHtml(c)}">${escapeHtml(c)}</div>`).join('')}
+  </div>
+  <div style="display:flex;gap:8px;margin-top:6px;">
+    <input type="text" class="cat-custom-input" data-target="${containerId}" placeholder="Skriv nyt tema...">
+    <button class="btn btn-ghost btn-small cat-custom-add" data-target="${containerId}" style="width:auto;white-space:nowrap;">Tilføj</button>
+  </div>`;
+}
+function bindCategoryPickerEvents(scopeEl){
+  scopeEl.querySelectorAll('.chip-select .chip[data-cat]').forEach(chip=>{
+    chip.addEventListener('click', ()=> chip.classList.toggle('selected'));
+  });
+  scopeEl.querySelectorAll('.cat-custom-add').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const targetId = btn.dataset.target;
+      const input = scopeEl.querySelector(`.cat-custom-input[data-target="${targetId}"]`);
+      const val = input.value.trim();
+      if(!val) return;
+      const container = document.getElementById(targetId);
+      const existing = Array.from(container.querySelectorAll('.chip')).find(c => c.dataset.cat.toLowerCase() === val.toLowerCase());
+      if(existing){
+        existing.classList.add('selected');
+      } else {
+        const chip = document.createElement('div');
+        chip.className = 'chip selected';
+        chip.dataset.cat = val;
+        chip.textContent = val;
+        chip.addEventListener('click', ()=> chip.classList.toggle('selected'));
+        container.appendChild(chip);
+      }
+      input.value = '';
+    });
+  });
+}
+
+function resizeImageFile(file, maxDim=480, quality=0.72){
+  return new Promise((resolve, reject)=>{
+    const reader = new FileReader();
+    reader.onload = e => {
+      const img = new Image();
+      img.onload = () => {
+        let w = img.width, h = img.height;
+        if(w >= h){ if(w > maxDim){ h = Math.round(h * maxDim / w); w = maxDim; } }
+        else { if(h > maxDim){ w = Math.round(w * maxDim / h); h = maxDim; } }
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.onerror = () => reject(new Error('Kunne ikke læse billedet'));
+      img.src = e.target.result;
+    };
+    reader.onerror = () => reject(new Error('Kunne ikke læse filen'));
+    reader.readAsDataURL(file);
+  });
+}
+
+const uid = () => Math.random().toString(36).slice(2,10) + Date.now().toString(36).slice(-4);
+const pad = n => String(n).padStart(2,'0');
+const todayStr = () => { const d=new Date(); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; };
+const dayNames = ['søn','man','tirs','ons','tors','fre','lør'];
+const monNames = ['jan','feb','mar','apr','maj','jun','jul','aug','sep','okt','nov','dec'];
+function fmtDateShort(dateStr){
+  const [y,m,d] = dateStr.split('-').map(Number);
+  const dt = new Date(y, m-1, d);
+  return { dow: dayNames[dt.getDay()], dm: `${d}. ${monNames[m-1]}` };
+}
+function fmtDateLong(dateStr){
+  const {dow, dm} = fmtDateShort(dateStr);
+  return `${dow} ${dm}`;
+}
+function addDays(dateStr, delta){
+  const [y,m,d] = dateStr.split('-').map(Number);
+  const dt = new Date(y, m-1, d);
+  dt.setDate(dt.getDate() + delta);
+  return `${dt.getFullYear()}-${pad(dt.getMonth()+1)}-${pad(dt.getDate())}`;
+}
+function formatDDMMYYYY(isoDateStr){
+  const [y,m,d] = isoDateStr.split('-');
+  return `${d}/${m}/${y}`;
+}
+
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(t._h);
+  t._h = setTimeout(()=> t.classList.remove('show'), 1800);
+}
+
+/* ---------- persistence helpers ---------- */
+async function saveExercises(){ await storeSet('exercises', exercises); }
+async function saveSessions(){ await storeSet('sessions', sessions); }
+async function saveActivities(){ await storeSet('activities', activities); }
+async function saveDiary(){ await storeSet('diaryEntries', diaryEntries); }
+async function saveHealth(){ await storeSet('healthEntries', healthEntries); }
+function favSort(list){ return [...list].sort((a,b)=> (b.favorite?1:0) - (a.favorite?1:0)); }
+
+/* ---------- exercise lookup ---------- */
+function exerciseById(id){ return exercises.find(e => e.id === id); }
+
+/* ---------- rendering ---------- */
+const view = document.getElementById('view');
+
+function render(){
+  if(activeTab === 'today') renderToday();
+  else if(activeTab === 'plan') renderPlan();
+  else if(activeTab === 'library') renderLibrary();
+  else if(activeTab === 'log') renderLog();
+}
+
+function storageNoteHtml(){
+  return usingFallback
+    ? `<div class="storage-note">Gemmer kun midlertidigt i denne visning – data forsvinder når du lukker fanen.</div>`
+    : '';
+}
+
+/* ----- TODAY ----- */
+function renderToday(){
+  const t = todayStr();
+  const todays = sessions.filter(s => s.date === t);
+  let html = storageNoteHtml();
+
+  if(!quickEntryOpen){
+    html += `<div class="quick-log-toggle" id="openQuickEntry">+ Log noget</div>`;
+  } else {
+    html += renderQuickEntryForm();
+  }
+
+  if(todays.length === 0 && !quickEntryOpen){
+    html += `
+      <div class="empty">
+        <strong>Ingen træning planlagt i dag</strong>
+        Gå til Planlæg og sæt et tidspunkt, så ved du præcis hvad I skal øve – eller log noget ovenfor.
+      </div>`;
+  } else {
+    todays.sort((a,b)=> a.time.localeCompare(b.time));
+    todays.forEach(s => { html += renderSessionCard(s); });
+  }
+  view.innerHTML = html;
+  bindTodayEvents();
+}
+
+function renderQuickEntryForm(){
+  let inner = `<label class="field-label">Hvad vil du logge?</label>
+    <div class="chip-select" id="quickKindChips">
+      <div class="chip ${quickEntryKind==='training'?'selected':''}" data-kind="training">Træning</div>
+      <div class="chip ${quickEntryKind==='activity'?'selected':''}" data-kind="activity">Aktivitet</div>
+      <div class="chip ${quickEntryKind==='diary'?'selected':''}" data-kind="diary">Dagbog</div>
+      <div class="chip ${quickEntryKind==='health'?'selected':''}" data-kind="health">Sundhed</div>
+    </div>`;
+
+  if(quickEntryKind === 'training'){
+    if(exercises.length === 0){
+      inner += `<div class="empty" style="margin-top:10px;">Tilføj mindst én øvelse under fanen Øvelser først.</div>`;
+    } else {
+      inner += `<label class="field-label">Hvad øvede I lige?</label>
+      <div class="chip-select" id="quickChips">
+        ${favSort(exercises).map(ex => `<div class="chip ${quickLogSelected.includes(ex.id)?'selected':''}" data-id="${ex.id}">
+          ${ex.image? `<img class="chip-thumb" src="${ex.image}">` : ''}${ex.favorite?'★ ':''}${escapeHtml(ex.name)}
+        </div>`).join('')}
+      </div>
+      <label class="field-label">Note (valgfri)</label>
+      <textarea id="quickNote" placeholder="Hvordan gik det?"></textarea>`;
+    }
+  } else if(quickEntryKind === 'activity'){
+    inner += `<label class="field-label">Hvad har I lavet?</label>
+      ${activityTypePickerHtml('quickActivityType', null)}
+      <label class="field-label">Billede (valgfri)</label>
+      <div>
+        ${quickActivityPhoto
+          ? `<img class="new-photo-preview" src="${quickActivityPhoto}">
+             <div><button class="btn btn-ghost btn-small" id="quickActivityPhotoRemove" style="margin-top:8px;">Fjern billede</button></div>`
+          : `<button class="btn btn-ghost btn-small" id="quickActivityPhotoPick">Vælg billede</button>`
+        }
+        <input type="file" accept="image/*" id="quickActivityPhotoInput" style="display:none;">
+      </div>
+      <label class="field-label">Note (valgfri)</label>
+      <textarea id="quickActivityNote" placeholder="Noget du vil huske?"></textarea>`;
+  } else if(quickEntryKind === 'diary'){
+    inner += `<label class="field-label">Hvad vil du huske?</label>
+      <textarea id="quickDiaryText" placeholder="Skriv en observation, tanke eller oplevelse..." style="min-height:90px;"></textarea>`;
+  } else if(quickEntryKind === 'health'){
+    inner += `<label class="field-label">Hvad drejer det sig om?</label>
+      ${healthTypePickerHtml('quickHealthType', null)}
+      <label class="field-label">Vægt i kg (valgfri)</label>
+      <input type="number" step="0.1" min="0" id="quickHealthWeight" placeholder="fx. 24.5">
+      <label class="field-label">Note (valgfri)</label>
+      <textarea id="quickHealthNote" placeholder="fx. Alt fint ved kontrollen"></textarea>`;
+  }
+
+  const submitLabels = { training:'Gem træning', activity:'Gem aktivitet', diary:'Gem note', health:'Gem' };
+  if(quickEntryKind){
+    inner += `<div class="row-buttons">
+      <button class="btn btn-primary" id="quickEntrySubmit">${submitLabels[quickEntryKind]}</button>
+      <button class="btn btn-ghost" id="closeQuickEntry">Annuller</button>
+    </div>`;
+  } else {
+    inner += `<div class="row-buttons"><button class="btn btn-ghost" id="closeQuickEntry">Luk</button></div>`;
+  }
+  return `<div class="card">${inner}</div>`;
+}
+
+function renderSessionCard(s){
+  const total = s.exerciseIds.length;
+  const done = s.doneIds.length;
+  const pct = total ? Math.round(done/total*100) : 0;
+  const exHtml = s.exerciseIds.map(id => {
+    const ex = exerciseById(id);
+    if(!ex) return '';
+    const isDone = s.doneIds.includes(id);
+    return `<div class="tag-item ${isDone?'done':''} ${ex.image?'has-img':''}" data-session="${s.id}" data-ex="${id}">
+      ${ex.image? `<img class="thumb" src="${ex.image}">` : ''}
+      <div style="flex:1">
+        <span class="name">${escapeHtml(ex.name)}</span>
+        ${ex.note ? `<span class="note">${escapeHtml(ex.note)}</span>` : ''}
+      </div>
+      <span class="stamp">Gjort</span>
+    </div>`;
+  }).join('');
+
+  const notesBlock = s.completed
+    ? `<label class="field-label">Noter fra træningen</label>
+       <textarea data-session-notes="${s.id}" placeholder="Skriv en note om hvordan det gik...">${escapeHtml(s.notes||'')}</textarea>
+       <div class="row-buttons"><button class="btn btn-ghost" data-save-notes="${s.id}">Gem note</button></div>`
+    : `<div class="row-buttons">
+         <button class="btn btn-primary" data-finish="${s.id}">Afslut træning</button>
+       </div>`;
+
+  return `<div class="card session-card">
+    <span class="time-badge">${s.time}</span>
+    ${s.completed ? '<span class="time-badge" style="background:var(--forest);color:#fff;margin-left:6px;">Gennemført</span>' : ''}
+    ${exHtml || '<div class="empty">Ingen øvelser valgt til denne træning.</div>'}
+    ${total ? `<div class="progress">${done} af ${total} øvelser</div>
+    <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>` : ''}
+    ${notesBlock}
+  </div>`;
+}
+
+function bindTodayEvents(){
+  const openBtn = view.querySelector('#openQuickEntry');
+  if(openBtn){ openBtn.addEventListener('click', ()=>{ quickEntryOpen = true; quickEntryKind = null; renderToday(); }); }
+  const closeBtn = view.querySelector('#closeQuickEntry');
+  if(closeBtn){ closeBtn.addEventListener('click', ()=>{ quickEntryOpen = false; quickEntryKind = null; renderToday(); }); }
+
+  const kindChips = view.querySelector('#quickKindChips');
+  if(kindChips){
+    kindChips.querySelectorAll('.chip').forEach(chip=>{
+      chip.addEventListener('click', ()=>{
+        quickEntryKind = chip.dataset.kind;
+        quickLogSelected = [];
+        quickActivityPhoto = null;
+        renderToday();
+      });
+    });
+  }
+
+  bindActivityTypePickerEvents(view); // handles both activity-type and health-type pickers, if present
+
+  const activityPhotoInput = view.querySelector('#quickActivityPhotoInput');
+  const activityPhotoPick = view.querySelector('#quickActivityPhotoPick');
+  if(activityPhotoPick){ activityPhotoPick.addEventListener('click', ()=> activityPhotoInput.click()); }
+  const activityPhotoRemove = view.querySelector('#quickActivityPhotoRemove');
+  if(activityPhotoRemove){ activityPhotoRemove.addEventListener('click', ()=>{ quickActivityPhoto = null; renderToday(); }); }
+  if(activityPhotoInput){
+    activityPhotoInput.addEventListener('change', async (e)=>{
+      const file = e.target.files[0];
+      if(!file) return;
+      try{ quickActivityPhoto = await resizeImageFile(file); renderToday(); }
+      catch(err){ showToast('Kunne ikke læse billedet'); }
+    });
+  }
+
+  const quickChips = view.querySelector('#quickChips');
+  if(quickChips){
+    quickChips.querySelectorAll('.chip').forEach(chip=>{
+      chip.addEventListener('click', ()=>{
+        const id = chip.dataset.id;
+        const idx = quickLogSelected.indexOf(id);
+        if(idx>-1) quickLogSelected.splice(idx,1); else quickLogSelected.push(id);
+        chip.classList.toggle('selected');
+      });
+    });
+  }
+
+  const quickEntrySubmit = view.querySelector('#quickEntrySubmit');
+  if(quickEntrySubmit){
+    quickEntrySubmit.addEventListener('click', async ()=>{
+      const now = new Date();
+      const time = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+
+      if(quickEntryKind === 'training'){
+        if(quickLogSelected.length === 0){ showToast('Vælg mindst én øvelse'); return; }
+        const note = view.querySelector('#quickNote').value.trim();
+        sessions.push({
+          id: uid(), date: todayStr(), time,
+          exerciseIds: [...quickLogSelected], doneIds: [...quickLogSelected],
+          completed: true, notes: note, completedAt: Date.now()
+        });
+        await saveSessions();
+        showToast('Spontan træning logget 🐾');
+      } else if(quickEntryKind === 'activity'){
+        const selectedChip = view.querySelector('#quickActivityType .chip.selected');
+        if(!selectedChip){ showToast('Vælg en aktivitetstype'); return; }
+        const note = view.querySelector('#quickActivityNote').value.trim();
+        activities.push({
+          id: uid(), date: todayStr(), time,
+          type: selectedChip.dataset.type, note, image: quickActivityPhoto || null, createdAt: Date.now()
+        });
+        await saveActivities();
+        quickActivityPhoto = null;
+        showToast('Aktivitet logget 🐾');
+      } else if(quickEntryKind === 'diary'){
+        const text = view.querySelector('#quickDiaryText').value.trim();
+        if(!text){ showToast('Skriv en note'); return; }
+        diaryEntries.push({ id: uid(), date: todayStr(), time, text, createdAt: Date.now() });
+        await saveDiary();
+        showToast('Note gemt 📝');
+      } else if(quickEntryKind === 'health'){
+        const selectedChip = view.querySelector('#quickHealthType .chip.selected');
+        if(!selectedChip){ showToast('Vælg hvad det drejer sig om'); return; }
+        const weightRaw = view.querySelector('#quickHealthWeight').value.trim();
+        const weightKg = weightRaw ? parseFloat(weightRaw.replace(',','.')) : null;
+        const note = view.querySelector('#quickHealthNote').value.trim();
+        healthEntries.push({
+          id: uid(), date: todayStr(), time, type: selectedChip.dataset.type,
+          weightKg: (weightKg !== null && !isNaN(weightKg)) ? weightKg : null,
+          note, createdAt: Date.now()
+        });
+        await saveHealth();
+        showToast('Sundhedsnote gemt 🐾');
+      } else {
+        showToast('Vælg hvad du vil logge');
+        return;
+      }
+      quickEntryOpen = false; quickEntryKind = null; quickLogSelected = [];
+      renderToday();
+    });
+  }
+
+  view.querySelectorAll('.tag-item').forEach(el => {
+    el.addEventListener('click', async () => {
+      const sid = el.dataset.session, exid = el.dataset.ex;
+      const s = sessions.find(x=>x.id===sid);
+      if(!s || s.completed) { if(s && s.completed) showToast('Træningen er allerede afsluttet'); return; }
+      const idx = s.doneIds.indexOf(exid);
+      if(idx>-1) s.doneIds.splice(idx,1); else s.doneIds.push(exid);
+      await saveSessions();
+      renderToday();
+    });
+  });
+  view.querySelectorAll('[data-finish]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      const sid = btn.dataset.finish;
+      const s = sessions.find(x=>x.id===sid);
+      if(!s) return;
+      s.completed = true;
+      s.completedAt = Date.now();
+      await saveSessions();
+      showToast('Træning afsluttet 🐾');
+      renderToday();
+    });
+  });
+  view.querySelectorAll('[data-save-notes]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      const sid = btn.dataset.saveNotes;
+      const s = sessions.find(x=>x.id===sid);
+      const ta = view.querySelector(`[data-session-notes="${sid}"]`);
+      s.notes = ta.value;
+      await saveSessions();
+      showToast('Note gemt');
+    });
+  });
+}
+
+/* ----- PLAN ----- */
+function renderPlan(){
+  const t = todayStr();
+  const upcoming = sessions.filter(s => !s.completed).sort((a,b)=> (a.date+a.time).localeCompare(b.date+b.time));
+  const editing = planEditingId ? sessions.find(s=>s.id===planEditingId) : null;
+
+  let html = storageNoteHtml();
+
+  html += `<h2 class="section-title">${editing? 'Rediger træning' : 'Planlæg ny træning'}</h2>`;
+
+  if(exercises.length === 0){
+    html += `<div class="empty"><strong>Ingen øvelser endnu</strong>Tilføj øvelser under fanen Øvelser, så kan du vælge dem her.</div>`;
+  } else {
+    const selDate = editing ? editing.date : t;
+    const selTime = editing ? editing.time : '16:00';
+    html += `
+      <div class="card">
+        <label class="field-label">Dato</label>
+        <input type="date" id="planDate" lang="da-DK" value="${selDate}">
+        <label class="field-label">Tidspunkt</label>
+        <input type="time" id="planTime" lang="da-DK" value="${selTime}">
+        <div id="planDateTimePreview" style="font-size:12px;color:var(--ink-soft);margin:2px 0 12px;"></div>
+        <label class="field-label">Øvelser</label>
+        <div class="chip-select" id="planChips">
+          ${favSort(exercises).map(ex => {
+            const sel = editing ? editing.exerciseIds.includes(ex.id) : false;
+            return `<div class="chip ${sel?'selected':''}" data-id="${ex.id}">${ex.image? `<img class="chip-thumb" src="${ex.image}">` : ''}${ex.favorite?'★ ':''}${escapeHtml(ex.name)}</div>`;
+          }).join('')}
+        </div>
+        <div class="row-buttons">
+          <button class="btn btn-primary" id="planSubmit">${editing? 'Opdater træning' : 'Planlæg træning'}</button>
+          ${editing? '<button class="btn btn-ghost" id="planCancel">Annuller</button>' : ''}
+        </div>
+      </div>`;
+  }
+
+  html += `<h2 class="section-title">Kommende <span class="count">${upcoming.length}</span></h2>`;
+  if(upcoming.length === 0){
+    html += `<div class="empty">Ingen kommende træninger planlagt.</div>`;
+  } else {
+    upcoming.forEach(s => {
+      const missed = s.date < t;
+      const {dow, dm} = fmtDateShort(s.date);
+      const names = s.exerciseIds.map(id => exerciseById(id)?.name).filter(Boolean).join(', ') || 'Ingen øvelser';
+      html += `<div class="upcoming-row ${missed?'missed':''}" data-edit="${s.id}">
+        <div class="date-block">${dow}<br>${dm.split(' ')[0]}</div>
+        <div class="info">
+          <div class="t">${s.time} ${missed? '· ikke gennemført':''}</div>
+          <div class="ex">${escapeHtml(names)}</div>
+        </div>
+        <button data-delete-session="${s.id}" title="Slet" style="background:none;border:none;color:var(--ink-soft);cursor:pointer;">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>
+        </button>
+      </div>`;
+    });
+  }
+
+  view.innerHTML = html;
+  bindPlanEvents();
+}
+
+function bindPlanEvents(){
+  const dateInput = view.querySelector('#planDate');
+  const timeInput = view.querySelector('#planTime');
+  const preview = view.querySelector('#planDateTimePreview');
+  const updatePreview = () => {
+    if(!preview || !dateInput || !timeInput) return;
+    const dateVal = dateInput.value, timeVal = timeInput.value;
+    preview.textContent = (dateVal && timeVal)
+      ? `Valgt: ${formatDDMMYYYY(dateVal)} kl. ${timeVal}`
+      : '';
+  };
+  if(dateInput){ dateInput.addEventListener('input', updatePreview); }
+  if(timeInput){ timeInput.addEventListener('input', updatePreview); }
+  updatePreview();
+
+  const chipsEl = view.querySelector('#planChips');
+  if(chipsEl){
+    chipsEl.querySelectorAll('.chip').forEach(chip=>{
+      chip.addEventListener('click', ()=> chip.classList.toggle('selected'));
+    });
+  }
+  const submit = view.querySelector('#planSubmit');
+  if(submit){
+    submit.addEventListener('click', async ()=>{
+      const date = view.querySelector('#planDate').value;
+      const time = view.querySelector('#planTime').value;
+      const selectedIds = Array.from(view.querySelectorAll('#planChips .chip.selected')).map(c=>c.dataset.id);
+      if(!date || !time){ showToast('Vælg dato og tidspunkt'); return; }
+      if(selectedIds.length === 0){ showToast('Vælg mindst én øvelse'); return; }
+
+      if(planEditingId){
+        const s = sessions.find(x=>x.id===planEditingId);
+        s.date = date; s.time = time; s.exerciseIds = selectedIds;
+        s.doneIds = s.doneIds.filter(id => selectedIds.includes(id));
+        showToast('Træning opdateret');
+        planEditingId = null;
+      } else {
+        sessions.push({ id: uid(), date, time, exerciseIds: selectedIds, doneIds: [], completed:false, notes:'', completedAt:null });
+        showToast('Træning planlagt 📅');
+      }
+      await saveSessions();
+      renderPlan();
+    });
+  }
+  const cancel = view.querySelector('#planCancel');
+  if(cancel){ cancel.addEventListener('click', ()=>{ planEditingId=null; renderPlan(); }); }
+
+  view.querySelectorAll('[data-edit]').forEach(row=>{
+    row.addEventListener('click', (e)=>{
+      if(e.target.closest('[data-delete-session]')) return;
+      planEditingId = row.dataset.edit;
+      renderPlan();
+      view.scrollTo({top:0, behavior:'smooth'});
+    });
+  });
+  view.querySelectorAll('[data-delete-session]').forEach(btn=>{
+    btn.addEventListener('click', async (e)=>{
+      e.stopPropagation();
+      const id = btn.dataset.deleteSession;
+      if(!confirm('Slet denne planlagte træning?')) return;
+      sessions = sessions.filter(s=>s.id!==id);
+      if(planEditingId===id) planEditingId = null;
+      await saveSessions();
+      renderPlan();
+    });
+  });
+}
+
+/* ----- LIBRARY ----- */
+function renderManageCategoriesList(){
+  const cats = getAllCategories();
+  if(cats.length === 0){
+    return `<div class="empty" style="margin-top:8px;">Ingen temaer endnu.</div>`;
+  }
+  return `<div style="margin-top:10px;display:flex;flex-direction:column;gap:6px;">
+    ${cats.map(c=>`<div style="display:flex;align-items:center;justify-content:space-between;background:var(--paper);border-radius:10px;padding:6px 6px 6px 12px;">
+      <span class="cat-pill" style="margin:0;">${escapeHtml(c)}</span>
+      <button data-delete-category="${escapeHtml(c)}" title="Slet tema" style="background:none;border:none;color:var(--ink-soft);cursor:pointer;padding:6px;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>
+      </button>
+    </div>`).join('')}
+  </div>`;
+}
+function renderLibrary(){
+  let html = storageNoteHtml();
+  html += `<h2 class="section-title">Tilføj øvelse</h2>
+    <div class="card" id="libAddForm">
+      <label class="field-label">Navn / kommando</label>
+      <input type="text" id="libName" placeholder="fx. Bliv, Kom, Ved fod">
+      <label class="field-label">Note (valgfri)</label>
+      <input type="text" id="libNote" placeholder="fx. Hold i 10 sekunder">
+      <label class="field-label">Billede (valgfri)</label>
+      <div>
+        ${newExercisePhoto
+          ? `<img class="new-photo-preview" src="${newExercisePhoto}">
+             <div><button class="btn btn-ghost btn-small" id="libNewPhotoRemove" style="margin-top:8px;">Fjern billede</button></div>`
+          : `<button class="btn btn-ghost btn-small" id="libNewPhotoPick">Vælg billede</button>`
+        }
+        <input type="file" accept="image/*" id="libNewPhotoInput" style="display:none;">
+      </div>
+      <label class="field-label">Temaer (valgfri)</label>
+      ${categoryPickerHtml('newCatChips', [])}
+      <div class="row-buttons"><button class="btn btn-primary" id="libAdd">Tilføj til bibliotek</button></div>
+    </div>`;
+
+  if(exercises.length > 0){
+    html += `<div class="card" style="padding:14px;">
+      <input type="text" id="libSearchInput" placeholder="Søg efter øvelse...">
+      <label class="field-label">Fremsøg tema</label>
+      <div class="chip-select" id="libCatFilterChips">
+        <div class="chip ${libraryCategoryFilter===null?'selected':''}" data-filter-cat="__all__">Alle</div>
+        ${getAllCategories().map(c=>`<div class="chip ${libraryCategoryFilter===c?'selected':''}" data-filter-cat="${escapeHtml(c)}">${escapeHtml(c)}</div>`).join('')}
+      </div>
+      <button class="cat-edit-btn" id="toggleManageCats" style="margin-top:8px;">${manageCategoriesOpen ? 'Skjul temaer' : 'Administrer temaer'}</button>
+      ${manageCategoriesOpen ? renderManageCategoriesList() : ''}
+    </div>`;
+  }
+
+  html += `<div id="libResultsList"></div>`;
+  html += `<input type="file" accept="image/*" id="libPhotoInputHidden" style="display:none;">`;
+  view.innerHTML = html;
+  bindLibraryEvents();
+  renderLibResults();
+}
+
+function renderLibItem(ex){
+  const photoInner = ex.image
+    ? `<img class="lib-photo" src="${ex.image}" data-change-photo="${ex.id}" title="Skift billede">
+       <button class="lib-photo-remove" data-remove-photo="${ex.id}" title="Fjern billede">✕</button>`
+    : `<div class="lib-photo-btn" data-add-photo="${ex.id}" title="Tilføj billede">+</div>`;
+
+  const cats = ex.categories || [];
+  const isEditing = libEditingCatsId === ex.id;
+  const catsSection = isEditing
+    ? `<div style="margin-top:8px;">
+         ${categoryPickerHtml('editCatChips-'+ex.id, cats)}
+         <div class="row-buttons" style="margin-top:8px;">
+           <button class="btn btn-primary btn-small" data-save-cats="${ex.id}">Gem temaer</button>
+           <button class="btn btn-ghost btn-small" data-cancel-cats="${ex.id}">Annuller</button>
+         </div>
+       </div>`
+    : `<div class="lib-cats-row">
+         ${cats.map(c=>`<span class="cat-pill">${escapeHtml(c)}</span>`).join('')}
+         <button class="cat-edit-btn" data-toggle-cats="${ex.id}">${cats.length? 'Rediger temaer' : '+ Tilføj tema'}</button>
+       </div>`;
+
+  return `<div class="lib-item">
+    <div class="lib-photo-slot">${photoInner}</div>
+    <div class="lib-main">
+      <div class="name">${escapeHtml(ex.name)}</div>
+      ${ex.note? `<div class="note">${escapeHtml(ex.note)}</div>`: ''}
+      ${catsSection}
+    </div>
+    <button class="fav-star ${ex.favorite?'active':''}" data-toggle-fav="${ex.id}" title="${ex.favorite?'Fjern favorit':'Marker som favorit'}">★</button>
+    <button data-del-ex="${ex.id}" title="Slet">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>
+    </button>
+  </div>`;
+}
+
+function renderLibResults(){
+  const container = document.getElementById('libResultsList');
+  if(!container) return;
+  const term = librarySearch.trim().toLowerCase();
+  const filtered = favSort(exercises.filter(ex=>{
+    const matchesTerm = !term || ex.name.toLowerCase().includes(term);
+    const matchesCat = !libraryCategoryFilter || (ex.categories||[]).includes(libraryCategoryFilter);
+    return matchesTerm && matchesCat;
+  }));
+
+  let html = `<h2 class="section-title">Dine øvelser <span class="count">${filtered.length}</span></h2>`;
+  if(exercises.length === 0){
+    html += `<div class="empty"><strong>Biblioteket er tomt</strong>Tilføj den første øvelse ovenfor, så kan du bruge den i din planlægning.</div>`;
+  } else if(filtered.length === 0){
+    html += `<div class="empty"><strong>Ingen øvelser matcher</strong>Prøv en anden søgning, eller vælg "Alle" for at se hele biblioteket.</div>`;
+  } else {
+    filtered.forEach(ex=>{ html += renderLibItem(ex); });
+  }
+  container.innerHTML = html;
+  bindLibResultsEvents(container);
+}
+
+function bindLibraryEvents(){
+  const addForm = view.querySelector('#libAddForm');
+  bindCategoryPickerEvents(addForm);
+
+  addForm.querySelector('#libAdd').addEventListener('click', async ()=>{
+    const nameEl = view.querySelector('#libName');
+    const noteEl = view.querySelector('#libNote');
+    const name = nameEl.value.trim();
+    if(!name){ showToast('Skriv et navn på øvelsen'); return; }
+    const categories = Array.from(view.querySelectorAll('#newCatChips .chip.selected')).map(c=>c.dataset.cat);
+    exercises.push({ id: uid(), name, note: noteEl.value.trim(), image: newExercisePhoto || null, categories, favorite: false });
+    newExercisePhoto = null;
+    await saveExercises();
+    showToast('Øvelse tilføjet');
+    renderLibrary();
+  });
+
+  const newPhotoInput = view.querySelector('#libNewPhotoInput');
+  const newPhotoPick = view.querySelector('#libNewPhotoPick');
+  if(newPhotoPick){ newPhotoPick.addEventListener('click', ()=> newPhotoInput.click()); }
+  const newPhotoRemove = view.querySelector('#libNewPhotoRemove');
+  if(newPhotoRemove){ newPhotoRemove.addEventListener('click', ()=>{ newExercisePhoto = null; renderLibrary(); }); }
+  newPhotoInput.addEventListener('change', async (e)=>{
+    const file = e.target.files[0];
+    if(!file) return;
+    try{ newExercisePhoto = await resizeImageFile(file); renderLibrary(); }
+    catch(err){ showToast('Kunne ikke læse billedet'); }
+  });
+
+  const searchInput = view.querySelector('#libSearchInput');
+  if(searchInput){
+    searchInput.value = librarySearch;
+    searchInput.addEventListener('input', ()=>{ librarySearch = searchInput.value; renderLibResults(); });
+  }
+  const filterChips = view.querySelector('#libCatFilterChips');
+  if(filterChips){
+    filterChips.querySelectorAll('.chip').forEach(chip=>{
+      chip.addEventListener('click', ()=>{
+        libraryCategoryFilter = chip.dataset.filterCat === '__all__' ? null : chip.dataset.filterCat;
+        filterChips.querySelectorAll('.chip').forEach(c=>c.classList.remove('selected'));
+        chip.classList.add('selected');
+        renderLibResults();
+      });
+    });
+  }
+
+  const toggleManageCats = view.querySelector('#toggleManageCats');
+  if(toggleManageCats){
+    toggleManageCats.addEventListener('click', ()=>{
+      manageCategoriesOpen = !manageCategoriesOpen;
+      renderLibrary();
+    });
+  }
+  view.querySelectorAll('[data-delete-category]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      const name = btn.dataset.deleteCategory;
+      if(!confirm(`Slet temaet "${name}"? Det fjernes fra alle øvelser og forsvinder som forslag.`)) return;
+      await deleteCategory(name);
+      showToast('Tema slettet');
+      renderLibrary();
+    });
+  });
+}
+
+function bindLibResultsEvents(container){
+  bindCategoryPickerEvents(container);
+
+  container.querySelectorAll('[data-toggle-fav]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      const ex = exerciseById(btn.dataset.toggleFav);
+      if(ex){ ex.favorite = !ex.favorite; await saveExercises(); renderLibResults(); }
+    });
+  });
+
+  const hiddenInput = view.querySelector('#libPhotoInputHidden');
+  container.querySelectorAll('[data-add-photo], [data-change-photo]').forEach(el=>{
+    el.addEventListener('click', ()=>{
+      photoTargetExerciseId = el.dataset.addPhoto || el.dataset.changePhoto;
+      hiddenInput.click();
+    });
+  });
+  hiddenInput.onchange = async (e)=>{
+    const file = e.target.files[0];
+    if(!file || !photoTargetExerciseId) return;
+    try{
+      const dataUrl = await resizeImageFile(file);
+      const ex = exerciseById(photoTargetExerciseId);
+      if(ex){ ex.image = dataUrl; await saveExercises(); showToast('Billede gemt'); renderLibResults(); }
+    } catch(err){ showToast('Kunne ikke læse billedet'); }
+    hiddenInput.value = '';
+    photoTargetExerciseId = null;
+  };
+  container.querySelectorAll('[data-remove-photo]').forEach(btn=>{
+    btn.addEventListener('click', async (e)=>{
+      e.stopPropagation();
+      const ex = exerciseById(btn.dataset.removePhoto);
+      if(ex){ ex.image = null; await saveExercises(); renderLibResults(); }
+    });
+  });
+
+  container.querySelectorAll('[data-toggle-cats]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      libEditingCatsId = btn.dataset.toggleCats;
+      renderLibResults();
+    });
+  });
+  container.querySelectorAll('[data-cancel-cats]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{ libEditingCatsId = null; renderLibResults(); });
+  });
+  container.querySelectorAll('[data-save-cats]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      const id = btn.dataset.saveCats;
+      const ex = exerciseById(id);
+      const picker = document.getElementById('editCatChips-'+id);
+      if(ex && picker){
+        ex.categories = Array.from(picker.querySelectorAll('.chip.selected')).map(c=>c.dataset.cat);
+        await saveExercises();
+        showToast('Temaer gemt');
+      }
+      libEditingCatsId = null;
+      renderLibResults();
+    });
+  });
+
+  container.querySelectorAll('[data-del-ex]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      const id = btn.dataset.delEx;
+      if(!confirm('Slet denne øvelse? Den fjernes også fra planlagte træninger.')) return;
+      exercises = exercises.filter(e=>e.id!==id);
+      sessions.forEach(s=>{
+        s.exerciseIds = s.exerciseIds.filter(x=>x!==id);
+        s.doneIds = s.doneIds.filter(x=>x!==id);
+      });
+      await saveExercises();
+      await saveSessions();
+      renderLibResults();
+    });
+  });
+}
+
+/* ----- LOG ----- */
+function renderLog(){
+  let html = storageNoteHtml();
+  const done = sessions.filter(s=>s.completed);
+  const totalEntries = done.length + activities.length + diaryEntries.length + healthEntries.length;
+
+  if(totalEntries > 0){
+    html += `<div class="chip-select" id="logTypeFilterChips">
+      <div class="chip ${logTypeFilter==='all'?'selected':''}" data-type-filter="all">Alle</div>
+      <div class="chip ${logTypeFilter==='training'?'selected':''}" data-type-filter="training">Træning</div>
+      <div class="chip ${logTypeFilter==='activity'?'selected':''}" data-type-filter="activity">Aktivitet</div>
+      <div class="chip ${logTypeFilter==='diary'?'selected':''}" data-type-filter="diary">Dagbog</div>
+      <div class="chip ${logTypeFilter==='health'?'selected':''}" data-type-filter="health">Sundhed</div>
+    </div>`;
+  }
+
+  const chartEvents = [];
+  if(logTypeFilter==='all' || logTypeFilter==='training') chartEvents.push(...done);
+  if(logTypeFilter==='all' || logTypeFilter==='activity') chartEvents.push(...activities);
+  if(logTypeFilter==='all' || logTypeFilter==='diary') chartEvents.push(...diaryEntries);
+  if(logTypeFilter==='all' || logTypeFilter==='health') chartEvents.push(...healthEntries);
+  const overviewTitles = { training:'Træningsoverblik', activity:'Aktivitetsoverblik', diary:'Dagbogsoverblik', health:'Sundhedsoverblik' };
+  const overviewTitle = overviewTitles[logTypeFilter] || 'Overblik';
+
+  html += `<h2 class="section-title">${overviewTitle}</h2>`;
+  if(chartEvents.length === 0){
+    html += `<div class="empty"><strong>${emptyLabel(logTypeFilter)} endnu</strong>Log noget under I dag, så dukker det op her – og du får et overblik over uge, måned og år.</div>`;
+  } else {
+    html += `<div class="chip-select" id="periodChips">
+      <div class="chip ${logPeriod==='week'?'selected':''}" data-period="week">Seneste uge</div>
+      <div class="chip ${logPeriod==='month'?'selected':''}" data-period="month">Denne måned</div>
+      <div class="chip ${logPeriod==='year'?'selected':''}" data-period="year">Seneste år</div>
+    </div>`;
+    html += renderLogChart(chartEvents, logTypeFilter);
+  }
+
+  const typeLabels = { training:'Træning', activity:'Aktiviteter', diary:'Dagbog', health:'Sundhed' };
+  const typeLabel = typeLabels[logTypeFilter] || 'Alle indslag';
+  html += `<h2 class="section-title" style="margin-top:22px;">${typeLabel} <span class="count" id="logEntryCount"></span></h2>`;
+  if(totalEntries > 0){
+    html += `<input type="text" id="logSearchInput" placeholder="Søg i alle noter..." style="margin-bottom:12px;">`;
+  }
+  html += `<div id="logEntriesList"></div>`;
+
+  html += `<div class="card" style="margin-top:22px;">
+    <label class="field-label">Backup</label>
+    <div class="row-buttons">
+      <button class="btn btn-ghost" id="exportDataBtn">Eksportér data</button>
+      <button class="btn btn-ghost" id="importDataBtn">Importér data</button>
+    </div>
+    <input type="file" accept="application/json" id="importDataInput" style="display:none;">
+    <div style="font-size:12px;color:var(--ink-soft);margin-top:8px;">Gem en fil med alt dit data – godt til en ny telefon eller som sikkerhedskopi.</div>
+  </div>`;
+
+  view.innerHTML = html;
+  renderLogEntries();
+  bindLogEvents();
+}
+
+function renderLogEntries(){
+  const list = document.getElementById('logEntriesList');
+  const countEl = document.getElementById('logEntryCount');
+  if(!list) return;
+  const done = sessions.filter(s=>s.completed);
+  const totalEntries = done.length + activities.length + diaryEntries.length + healthEntries.length;
+
+  let combined = [];
+  if(logTypeFilter==='all' || logTypeFilter==='training'){
+    combined = combined.concat(done.map(s => ({ kind:'training', ts: s.completedAt||0, data:s })));
+  }
+  if(logTypeFilter==='all' || logTypeFilter==='activity'){
+    combined = combined.concat(activities.map(a => ({ kind:'activity', ts: a.createdAt||0, data:a })));
+  }
+  if(logTypeFilter==='all' || logTypeFilter==='diary'){
+    combined = combined.concat(diaryEntries.map(d => ({ kind:'diary', ts: d.createdAt||0, data:d })));
+  }
+  if(logTypeFilter==='all' || logTypeFilter==='health'){
+    combined = combined.concat(healthEntries.map(h => ({ kind:'health', ts: h.createdAt||0, data:h })));
+  }
+
+  const term = logSearchTerm.trim().toLowerCase();
+  if(term){
+    combined = combined.filter(entry=>{
+      if(entry.kind==='training'){
+        const s = entry.data;
+        const names = s.doneIds.map(id=>exerciseById(id)?.name).filter(Boolean).join(' ');
+        return (s.notes||'').toLowerCase().includes(term) || names.toLowerCase().includes(term);
+      }
+      if(entry.kind==='activity'){
+        const a = entry.data;
+        return (a.note||'').toLowerCase().includes(term) || (a.type||'').toLowerCase().includes(term);
+      }
+      if(entry.kind==='diary'){
+        return (entry.data.text||'').toLowerCase().includes(term);
+      }
+      if(entry.kind==='health'){
+        const h = entry.data;
+        return (h.note||'').toLowerCase().includes(term) || (h.type||'').toLowerCase().includes(term);
+      }
+      return false;
+    });
+  }
+
+  combined.sort((a,b)=> b.ts - a.ts);
+  if(countEl) countEl.textContent = combined.length;
+
+  let html = '';
+  if(totalEntries === 0){
+    html = `<div class="empty">Endnu ingen at vise her.</div>`;
+  } else if(combined.length === 0){
+    html = `<div class="empty">Intet matcher dette filter eller søgning.</div>`;
+  } else {
+    combined.forEach(entry=>{
+      const isEditing = editingLogEntry && editingLogEntry.kind === entry.kind && editingLogEntry.id === entry.data.id;
+      html += isEditing ? renderEntryEditForm(entry) : renderEntryView(entry);
+    });
+  }
+  list.innerHTML = html;
+  bindLogEntryEvents(list);
+}
+
+function entryActionsHtml(kind, id){
+  return `<div class="entry-actions">
+    <button class="entry-action-btn" data-edit-entry="${kind}:${id}" title="Rediger">✏️</button>
+    <button class="entry-action-btn danger" data-delete-entry="${kind}:${id}" title="Slet">🗑️</button>
+  </div>`;
+}
+
+function renderEntryView(entry){
+  if(entry.kind === 'training'){
+    const s = entry.data;
+    const names = s.doneIds.map(id=>exerciseById(id)?.name).filter(Boolean);
+    return `<div class="log-entry">
+      <div class="head">
+        <div><strong>${fmtDateLong(s.date)}</strong> <span class="d">${s.time}</span></div>
+        ${entryActionsHtml('training', s.id)}
+      </div>
+      <div class="exlist">${names.length? names.map(n=>`<span class="pill">${escapeHtml(n)}</span>`).join('') : '<span style="color:var(--ink-soft)">Ingen øvelser krydset af</span>'}</div>
+      ${s.notes? `<div class="notes">${escapeHtml(s.notes)}</div>` : ''}
+    </div>`;
+  }
+  if(entry.kind === 'activity'){
+    const a = entry.data;
+    return `<div class="log-entry">
+      <div class="head">
+        <div><strong>${fmtDateLong(a.date)}</strong> <span class="d">${a.time}</span></div>
+        ${entryActionsHtml('activity', a.id)}
+      </div>
+      ${a.image? `<img src="${a.image}" style="width:100%;max-width:180px;border-radius:10px;margin-bottom:6px;display:block;">` : ''}
+      <div class="exlist"><span class="cat-pill">${escapeHtml(a.type)}</span></div>
+      ${a.note? `<div class="notes">${escapeHtml(a.note)}</div>` : ''}
+    </div>`;
+  }
+  if(entry.kind === 'diary'){
+    const d = entry.data;
+    return `<div class="log-entry">
+      <div class="head">
+        <div><strong>${fmtDateLong(d.date)}</strong> <span class="d">${d.time}</span></div>
+        ${entryActionsHtml('diary', d.id)}
+      </div>
+      <div class="notes" style="border-left-color:var(--ink-soft);font-style:normal;color:var(--ink);">${escapeHtml(d.text)}</div>
+    </div>`;
+  }
+  // health
+  const h = entry.data;
+  return `<div class="log-entry">
+    <div class="head">
+      <div><strong>${fmtDateLong(h.date)}</strong> <span class="d">${h.time}</span></div>
+      ${entryActionsHtml('health', h.id)}
+    </div>
+    <div class="exlist"><span class="cat-pill">${escapeHtml(h.type)}</span>${h.weightKg? ` <span class="pill">${h.weightKg} kg</span>` : ''}</div>
+    ${h.note? `<div class="notes">${escapeHtml(h.note)}</div>` : ''}
+  </div>`;
+}
+
+function renderEntryEditForm(entry){
+  if(entry.kind === 'training'){
+    const s = entry.data;
+    return `<div class="log-entry">
+      <div class="head"><div><strong>${fmtDateLong(s.date)}</strong> <span class="d">${s.time}</span></div></div>
+      <label class="field-label">Note</label>
+      <textarea id="editEntryNote">${escapeHtml(s.notes||'')}</textarea>
+      <div class="row-buttons">
+        <button class="btn btn-primary btn-small" data-save-entry="training:${s.id}">Gem</button>
+        <button class="btn btn-ghost btn-small" data-cancel-entry="1">Annuller</button>
+      </div>
+    </div>`;
+  }
+  if(entry.kind === 'activity'){
+    const a = entry.data;
+    if(editingActivityPhoto === undefined) editingActivityPhoto = a.image || null;
+    return `<div class="log-entry">
+      <div class="head"><div><strong>${fmtDateLong(a.date)}</strong> <span class="d">${a.time}</span></div></div>
+      <label class="field-label">Type</label>
+      ${activityTypePickerHtml('editActivityType-'+a.id, a.type)}
+      <label class="field-label">Billede (valgfri)</label>
+      <div>
+        ${editingActivityPhoto
+          ? `<img class="new-photo-preview" src="${editingActivityPhoto}">
+             <div><button class="btn btn-ghost btn-small" id="editActivityPhotoRemove" style="margin-top:8px;">Fjern billede</button></div>`
+          : `<button class="btn btn-ghost btn-small" id="editActivityPhotoPick">Vælg billede</button>`
+        }
+        <input type="file" accept="image/*" id="editActivityPhotoInput" style="display:none;">
+      </div>
+      <label class="field-label">Note</label>
+      <textarea id="editEntryNote">${escapeHtml(a.note||'')}</textarea>
+      <div class="row-buttons">
+        <button class="btn btn-primary btn-small" data-save-entry="activity:${a.id}">Gem</button>
+        <button class="btn btn-ghost btn-small" data-cancel-entry="1">Annuller</button>
+      </div>
+    </div>`;
+  }
+  if(entry.kind === 'diary'){
+    const d = entry.data;
+    return `<div class="log-entry">
+      <div class="head"><div><strong>${fmtDateLong(d.date)}</strong> <span class="d">${d.time}</span></div></div>
+      <label class="field-label">Note</label>
+      <textarea id="editEntryNote" style="min-height:90px;">${escapeHtml(d.text||'')}</textarea>
+      <div class="row-buttons">
+        <button class="btn btn-primary btn-small" data-save-entry="diary:${d.id}">Gem</button>
+        <button class="btn btn-ghost btn-small" data-cancel-entry="1">Annuller</button>
+      </div>
+    </div>`;
+  }
+  // health
+  const h = entry.data;
+  return `<div class="log-entry">
+    <div class="head"><div><strong>${fmtDateLong(h.date)}</strong> <span class="d">${h.time}</span></div></div>
+    <label class="field-label">Type</label>
+    ${healthTypePickerHtml('editHealthType-'+h.id, h.type)}
+    <label class="field-label">Vægt i kg (valgfri)</label>
+    <input type="number" step="0.1" min="0" id="editEntryWeight" value="${h.weightKg!=null? h.weightKg : ''}">
+    <label class="field-label">Note</label>
+    <textarea id="editEntryNote">${escapeHtml(h.note||'')}</textarea>
+    <div class="row-buttons">
+      <button class="btn btn-primary btn-small" data-save-entry="health:${h.id}">Gem</button>
+      <button class="btn btn-ghost btn-small" data-cancel-entry="1">Annuller</button>
+    </div>
+  </div>`;
+}
+
+function bindLogEntryEvents(list){
+  bindActivityTypePickerEvents(list);
+
+  const photoInput = list.querySelector('#editActivityPhotoInput');
+  const photoPick = list.querySelector('#editActivityPhotoPick');
+  if(photoPick){ photoPick.addEventListener('click', ()=> photoInput.click()); }
+  const photoRemove = list.querySelector('#editActivityPhotoRemove');
+  if(photoRemove){ photoRemove.addEventListener('click', ()=>{ editingActivityPhoto = null; renderLogEntries(); }); }
+  if(photoInput){
+    photoInput.addEventListener('change', async (e)=>{
+      const file = e.target.files[0];
+      if(!file) return;
+      try{ editingActivityPhoto = await resizeImageFile(file); renderLogEntries(); }
+      catch(err){ showToast('Kunne ikke læse billedet'); }
+    });
+  }
+
+  list.querySelectorAll('[data-edit-entry]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const [kind, id] = btn.dataset.editEntry.split(':');
+      editingLogEntry = { kind, id };
+      editingActivityPhoto = undefined;
+      renderLogEntries();
+    });
+  });
+  list.querySelectorAll('[data-cancel-entry]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      editingLogEntry = null;
+      editingActivityPhoto = undefined;
+      renderLogEntries();
+    });
+  });
+  list.querySelectorAll('[data-save-entry]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      const [kind, id] = btn.dataset.saveEntry.split(':');
+      const noteEl = list.querySelector('#editEntryNote');
+      const note = noteEl ? noteEl.value.trim() : '';
+
+      if(kind === 'training'){
+        const s = sessions.find(x=>x.id===id);
+        if(s){ s.notes = note; await saveSessions(); }
+      } else if(kind === 'activity'){
+        const a = activities.find(x=>x.id===id);
+        const typeChip = list.querySelector(`#editActivityType-${id} .chip.selected`);
+        if(a){
+          if(typeChip) a.type = typeChip.dataset.type;
+          a.note = note;
+          a.image = editingActivityPhoto || null;
+          await saveActivities();
+        }
+      } else if(kind === 'diary'){
+        const d = diaryEntries.find(x=>x.id===id);
+        if(d){ d.text = note; await saveDiary(); }
+      } else if(kind === 'health'){
+        const h = healthEntries.find(x=>x.id===id);
+        const typeChip = list.querySelector(`#editHealthType-${id} .chip.selected`);
+        const weightEl = list.querySelector('#editEntryWeight');
+        const weightRaw = weightEl ? weightEl.value.trim() : '';
+        const weightKg = weightRaw ? parseFloat(weightRaw.replace(',','.')) : null;
+        if(h){
+          if(typeChip) h.type = typeChip.dataset.type;
+          h.weightKg = (weightKg !== null && !isNaN(weightKg)) ? weightKg : null;
+          h.note = note;
+          await saveHealth();
+        }
+      }
+      editingLogEntry = null;
+      editingActivityPhoto = undefined;
+      showToast('Ændringer gemt');
+      renderLogEntries();
+    });
+  });
+
+  list.querySelectorAll('[data-delete-entry]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      const [kind, id] = btn.dataset.deleteEntry.split(':');
+      if(!confirm('Slet dette indslag? Det kan ikke fortrydes.')) return;
+      if(kind === 'training'){
+        sessions = sessions.filter(x=>x.id!==id);
+        await saveSessions();
+      } else if(kind === 'activity'){
+        activities = activities.filter(x=>x.id!==id);
+        await saveActivities();
+      } else if(kind === 'diary'){
+        diaryEntries = diaryEntries.filter(x=>x.id!==id);
+        await saveDiary();
+      } else if(kind === 'health'){
+        healthEntries = healthEntries.filter(x=>x.id!==id);
+        await saveHealth();
+      }
+      if(editingLogEntry && editingLogEntry.kind===kind && editingLogEntry.id===id) editingLogEntry = null;
+      showToast('Indslag slettet');
+      renderLogEntries();
+    });
+  });
+}
+
+function bindLogEvents(){
+  const periodChips = view.querySelector('#periodChips');
+  if(periodChips){
+    periodChips.querySelectorAll('.chip').forEach(chip=>{
+      chip.addEventListener('click', ()=>{ logPeriod = chip.dataset.period; renderLog(); });
+    });
+  }
+  view.querySelectorAll('[data-month-nav]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      if(btn.disabled) return;
+      monthOffset += parseInt(btn.dataset.monthNav, 10);
+      renderLog();
+    });
+  });
+  view.querySelectorAll('[data-year-nav]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      if(btn.disabled) return;
+      yearOffset += parseInt(btn.dataset.yearNav, 10);
+      renderLog();
+    });
+  });
+  const monthToday = view.querySelector('[data-month-today]');
+  if(monthToday){ monthToday.addEventListener('click', ()=>{ monthOffset = 0; renderLog(); }); }
+  const yearToday = view.querySelector('[data-year-today]');
+  if(yearToday){ yearToday.addEventListener('click', ()=>{ yearOffset = 0; renderLog(); }); }
+
+  const typeFilterChips = view.querySelector('#logTypeFilterChips');
+  if(typeFilterChips){
+    typeFilterChips.querySelectorAll('.chip').forEach(chip=>{
+      chip.addEventListener('click', ()=>{
+        logTypeFilter = chip.dataset.typeFilter;
+        renderLog();
+      });
+    });
+  }
+
+  const searchInput = view.querySelector('#logSearchInput');
+  if(searchInput){
+    searchInput.value = logSearchTerm;
+    searchInput.addEventListener('input', ()=>{ logSearchTerm = searchInput.value; renderLogEntries(); });
+  }
+
+  const exportBtn = view.querySelector('#exportDataBtn');
+  if(exportBtn){
+    exportBtn.addEventListener('click', ()=>{
+      const payload = { exercises, sessions, activities, diaryEntries, healthEntries, exportedAt: new Date().toISOString(), version: 1 };
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `traenerlog-backup-${todayStr()}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showToast('Data eksporteret');
+    });
+  }
+  const importBtn = view.querySelector('#importDataBtn');
+  const importInput = view.querySelector('#importDataInput');
+  if(importBtn && importInput){
+    importBtn.addEventListener('click', ()=> importInput.click());
+    importInput.addEventListener('change', (e)=>{
+      const file = e.target.files[0];
+      if(!file) return;
+      const reader = new FileReader();
+      reader.onload = async (ev)=>{
+        try{
+          const data = JSON.parse(ev.target.result);
+          if(!confirm('Import overskriver alt nuværende data i appen. Vil du fortsætte?')){ importInput.value=''; return; }
+          exercises = Array.isArray(data.exercises) ? data.exercises : [];
+          sessions = Array.isArray(data.sessions) ? data.sessions : [];
+          activities = Array.isArray(data.activities) ? data.activities : [];
+          diaryEntries = Array.isArray(data.diaryEntries) ? data.diaryEntries : [];
+          healthEntries = Array.isArray(data.healthEntries) ? data.healthEntries : [];
+          exercises.forEach(ex=>{
+            if(!Array.isArray(ex.categories)) ex.categories = [];
+            if(ex.image === undefined) ex.image = null;
+            if(ex.favorite === undefined) ex.favorite = false;
+          });
+          await saveExercises();
+          await saveSessions();
+          await saveActivities();
+          await saveDiary();
+          await saveHealth();
+          showToast('Data importeret');
+          renderLog();
+        } catch(err){
+          showToast('Kunne ikke læse filen – er det en gyldig backup?');
+        }
+        importInput.value = '';
+      };
+      reader.readAsText(file);
+    });
+  }
+}
+
+function countLabel(n, filter){
+  if(filter === 'activity') return `${n} aktivitet${n===1?'':'er'}`;
+  if(filter === 'training') return `${n} træning${n===1?'':'er'}`;
+  if(filter === 'diary') return `${n} dagbogsnote${n===1?'':'r'}`;
+  if(filter === 'health') return `${n} sundhedsnote${n===1?'':'r'}`;
+  return `${n} indslag`;
+}
+function emptyLabel(filter){
+  if(filter === 'activity') return 'Ingen aktiviteter';
+  if(filter === 'training') return 'Ingen træninger';
+  if(filter === 'diary') return 'Ingen dagbogsnoter';
+  if(filter === 'health') return 'Ingen sundhedsnoter';
+  return 'Ingen indslag';
+}
+function renderLogChart(events, filter){
+  if(logPeriod === 'week') return renderWeekChart(events, filter);
+  if(logPeriod === 'month') return renderMonthHeatmap(events, filter);
+  return renderYearChart(events, filter);
+}
+
+function renderWeekChart(events, filter){
+  const t = todayStr();
+  const days = [];
+  for(let i=6;i>=0;i--) days.push(addDays(t,-i));
+  const counts = days.map(d => events.filter(s=>s.date===d).length);
+  const max = Math.max(1, ...counts);
+  const total = counts.reduce((a,b)=>a+b,0);
+  const bars = days.map((d,i)=>{
+    const { dow } = fmtDateShort(d);
+    const h = Math.round((counts[i]/max) * 72);
+    const isToday = d === t;
+    return `<div style="display:flex;flex-direction:column;align-items:center;flex:1;min-width:0;">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--ink-soft);margin-bottom:4px;height:12px;">${counts[i]||''}</div>
+      <div style="width:100%;max-width:28px;height:${Math.max(h,4)}px;background:${counts[i]>0?'var(--forest)':'rgba(32,48,58,0.12)'};border-radius:6px 6px 3px 3px;transition:height .25s;"></div>
+      <div style="font-size:11px;margin-top:6px;font-weight:${isToday?'700':'500'};color:${isToday?'var(--brass-deep)':'var(--ink-soft)'};text-transform:capitalize;">${dow.slice(0,3)}</div>
+    </div>`;
+  }).join('');
+  return `<div class="card">
+    <div style="display:flex;align-items:flex-end;gap:6px;height:112px;">${bars}</div>
+    <div style="text-align:center;margin-top:12px;font-size:13px;color:var(--ink-soft);">
+      ${total ? `${countLabel(total, filter)} de seneste 7 dage` : `${emptyLabel(filter)} de seneste 7 dage`}
+    </div>
+  </div>`;
+}
+
+function renderMonthHeatmap(events, filter){
+  const base = new Date();
+  base.setDate(1);
+  base.setMonth(base.getMonth() + monthOffset);
+  const year = base.getFullYear(), month = base.getMonth();
+  const daysInMonth = new Date(year, month+1, 0).getDate();
+  const firstDow = (new Date(year, month, 1).getDay() + 6) % 7; // Monday = 0
+
+  const cells = [];
+  for(let i=0;i<firstDow;i++) cells.push(null);
+  for(let d=1; d<=daysInMonth; d++) cells.push(`${year}-${pad(month+1)}-${pad(d)}`);
+
+  const t = todayStr();
+  const countFor = ds => ds ? events.filter(s=>s.date===ds).length : 0;
+  const monthTotal = events.filter(s => s.date.slice(0,7) === `${year}-${pad(month+1)}`).length;
+  const dayLabels = ['ma','ti','on','to','fr','lø','sø'];
+
+  let grid = `<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:6px;">
+    ${dayLabels.map(l=>`<div style="text-align:center;font-size:10px;color:var(--ink-soft);font-weight:700;">${l}</div>`).join('')}
+  </div><div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;">`;
+
+  cells.forEach(ds=>{
+    if(!ds){ grid += `<div></div>`; return; }
+    const c = countFor(ds);
+    let bg = 'rgba(32,48,58,0.06)', fg = 'var(--ink-soft)';
+    if(c===1){ bg = '#BFDAC4'; }
+    else if(c===2){ bg = '#7FB98C'; }
+    else if(c>=3){ bg = 'var(--forest)'; fg = '#fff'; }
+    const ring = ds===t ? 'box-shadow:0 0 0 2px var(--brass-deep) inset;' : '';
+    grid += `<div style="aspect-ratio:1;border-radius:6px;background:${bg};display:flex;align-items:center;justify-content:center;font-size:10px;color:${fg};font-weight:600;${ring}">${Number(ds.slice(-2))}</div>`;
+  });
+  grid += `</div>`;
+
+  const monthName = monNames[month];
+  const nextDisabled = monthOffset >= 0;
+  return `<div class="card">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+      <button class="btn btn-ghost btn-small" data-month-nav="-1" style="width:auto;padding:6px 14px;">‹</button>
+      <div style="text-align:center;">
+        <div style="font-family:'Baloo 2',sans-serif;font-weight:700;font-size:14px;text-transform:capitalize;">${monthName} ${year}</div>
+        ${monthOffset!==0 ? `<button class="cat-edit-btn" data-month-today="1">Til i dag</button>` : ''}
+      </div>
+      <button class="btn btn-ghost btn-small" data-month-nav="1" ${nextDisabled?'disabled':''} style="width:auto;padding:6px 14px;opacity:${nextDisabled?0.35:1};">›</button>
+    </div>
+    ${grid}
+    <div style="text-align:center;margin-top:12px;font-size:13px;color:var(--ink-soft);">
+      ${monthTotal ? `${countLabel(monthTotal, filter)} i ${monthName}` : `${emptyLabel(filter)} endnu i ${monthName}`}
+    </div>
+  </div>`;
+}
+
+function renderYearChart(events, filter){
+  const now = new Date();
+  const year = now.getFullYear() + yearOffset;
+  const months = [];
+  for(let m=0;m<12;m++) months.push({ m, key: `${year}-${pad(m+1)}` });
+  const counts = months.map(mo => events.filter(s => s.date.slice(0,7) === mo.key).length);
+  const max = Math.max(1, ...counts);
+  const total = counts.reduce((a,b)=>a+b,0);
+  const curKey = `${now.getFullYear()}-${pad(now.getMonth()+1)}`;
+
+  const bars = months.map((mo,i)=>{
+    const h = Math.round((counts[i]/max) * 90);
+    const isCurrent = mo.key === curKey;
+    return `<div style="display:flex;flex-direction:column;align-items:center;flex:1;min-width:22px;">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--ink-soft);margin-bottom:3px;height:11px;">${counts[i]||''}</div>
+      <div style="width:100%;max-width:16px;height:${Math.max(h,4)}px;background:${counts[i]>0?'var(--forest)':'rgba(32,48,58,0.12)'};border-radius:5px 5px 2px 2px;transition:height .25s;"></div>
+      <div style="font-size:9.5px;margin-top:5px;font-weight:${isCurrent?'700':'500'};color:${isCurrent?'var(--brass-deep)':'var(--ink-soft)'};text-transform:capitalize;">${monNames[mo.m]}</div>
+    </div>`;
+  }).join('');
+
+  const nextDisabled = yearOffset >= 0;
+  return `<div class="card">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+      <button class="btn btn-ghost btn-small" data-year-nav="-1" style="width:auto;padding:6px 14px;">‹</button>
+      <div style="text-align:center;">
+        <div style="font-family:'Baloo 2',sans-serif;font-weight:700;font-size:14px;">${year}</div>
+        ${yearOffset!==0 ? `<button class="cat-edit-btn" data-year-today="1">Til i år</button>` : ''}
+      </div>
+      <button class="btn btn-ghost btn-small" data-year-nav="1" ${nextDisabled?'disabled':''} style="width:auto;padding:6px 14px;opacity:${nextDisabled?0.35:1};">›</button>
+    </div>
+    <div style="display:flex;align-items:flex-end;gap:4px;height:122px;overflow-x:auto;">${bars}</div>
+    <div style="text-align:center;margin-top:12px;font-size:13px;color:var(--ink-soft);">
+      ${total ? `${countLabel(total, filter)} i ${year}` : `${emptyLabel(filter)} endnu i ${year}`}
+    </div>
+  </div>`;
+}
+
+/* ---------- utils ---------- */
+function escapeHtml(str){
+  return String(str).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+/* ---------- tab switching ---------- */
+document.querySelectorAll('nav.tabbar button').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('nav.tabbar button').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    activeTab = btn.dataset.tab;
+    if(activeTab !== 'plan') planEditingId = null;
+    render();
+    view.scrollTo({top:0});
+  });
+});
+
+/* ---------- date header ---------- */
+(function setHeaderDate(){
+  const d = new Date();
+  const full = `${dayNames[d.getDay()]}. ${d.getDate()}. ${monNames[d.getMonth()]} ${d.getFullYear()}`;
+  document.getElementById('todayDate').textContent = full;
+})();
+
+/* ---------- init ---------- */
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('service-worker.js').catch(()=>{ /* offline support just won't be available, app still works online */ });
+}
+
+(async function init(){
+  exercises = (await storeGet('exercises')) || [];
+  sessions = (await storeGet('sessions')) || [];
+  activities = (await storeGet('activities')) || [];
+  diaryEntries = (await storeGet('diaryEntries')) || [];
+  healthEntries = (await storeGet('healthEntries')) || [];
+  deletedCategoryNames = (await storeGet('deletedCategoryNames')) || [];
+  exercises.forEach(ex=>{
+    if(!Array.isArray(ex.categories)) ex.categories = [];
+    if(ex.image === undefined) ex.image = null;
+    if(ex.favorite === undefined) ex.favorite = false;
+  });
+  render();
+})();
+</script>
+</body>
+</html>

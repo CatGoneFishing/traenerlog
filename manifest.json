@@ -1,0 +1,25 @@
+{
+  "name": "Trænerlog",
+  "short_name": "Trænerlog",
+  "description": "Planlæg og log træning, aktiviteter og sundhed for din hund.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#E9E2CF",
+  "theme_color": "#20303A",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
