@@ -369,6 +369,8 @@ let libraryCategoryFilter = null; // selected theme filter in the Library tab, n
 let librarySearch = '';           // search text in the Library tab
 let libEditingCatsId = null;      // id of the exercise whose theme editor is currently open
 let libEditingNoteId = null;      // id of the exercise whose note editor is currently open
+let randomExerciseId = null;      // id of the currently shown random-exercise suggestion, or null
+let pendingPlanExerciseId = null; // exercise to pre-select next time the new-session Plan form renders
 let manageCategoriesOpen = false; // whether the "manage themes" panel is expanded in the Library tab
 let deletedCategoryNames = [];    // lowercased default-suggestion names the user has explicitly removed
 
@@ -853,6 +855,8 @@ function renderPlan(){
   } else {
     const selDate = editing ? editing.date : t;
     const selTime = editing ? editing.time : '16:00';
+    const preselectId = editing ? null : pendingPlanExerciseId;
+    pendingPlanExerciseId = null;
     html += `
       <div class="card">
         <label class="field-label">Dato</label>
@@ -864,7 +868,7 @@ function renderPlan(){
         <input type="text" id="planExerciseSearch" placeholder="Søg efter øvelse...">
         <div class="chip-select" id="planChips" style="margin-top:8px;">
           ${favSort(exercises).map(ex => {
-            const sel = editing ? editing.exerciseIds.includes(ex.id) : false;
+            const sel = editing ? editing.exerciseIds.includes(ex.id) : (preselectId === ex.id);
             return `<div class="chip ${sel?'selected':''}" data-id="${ex.id}" data-name="${escapeHtml(ex.name.toLowerCase())}">${ex.image? `<img class="chip-thumb" src="${ex.image}">` : ''}${ex.favorite?'★ ':''}${escapeHtml(ex.name)}</div>`;
           }).join('')}
         </div>
@@ -992,6 +996,45 @@ function renderManageCategoriesList(){
     </div>`).join('')}
   </div>`;
 }
+function pickRandomExercise(){
+  const term = librarySearch.trim().toLowerCase();
+  const pool = exercises.filter(ex=>{
+    const matchesTerm = !term || ex.name.toLowerCase().includes(term);
+    const matchesCat = !libraryCategoryFilter || (ex.categories||[]).includes(libraryCategoryFilter);
+    return matchesTerm && matchesCat;
+  });
+  const source = pool.length ? pool : exercises; // fall back to the full library if the current filter matches nothing
+  if(source.length === 0){ randomExerciseId = null; return; }
+  let candidates = source;
+  if(source.length > 1 && randomExerciseId){
+    candidates = source.filter(ex => ex.id !== randomExerciseId); // avoid repeating the same pick twice in a row
+    if(candidates.length === 0) candidates = source;
+  }
+  randomExerciseId = candidates[Math.floor(Math.random()*candidates.length)].id;
+}
+
+function renderRandomExercisePanel(){
+  if(exercises.length === 0) return '';
+  const ex = randomExerciseId ? exerciseById(randomExerciseId) : null;
+  if(!ex){
+    return `<div class="quick-log-toggle" id="rollRandomExercise">🎲 Tilfældig øvelse til inspiration</div>`;
+  }
+  return `<div class="card">
+    <div style="display:flex;gap:12px;align-items:flex-start;">
+      ${ex.image? `<img src="${ex.image}" style="width:60px;height:60px;border-radius:12px;object-fit:cover;flex:none;">` : ''}
+      <div style="flex:1;">
+        <div style="font-family:'Baloo 2',sans-serif;font-weight:700;font-size:16px;">${ex.favorite?'★ ':''}${escapeHtml(ex.name)}</div>
+        ${ex.note? `<div class="note" style="margin-top:2px;">${escapeHtml(ex.note)}</div>` : ''}
+        ${ex.categories && ex.categories.length? `<div class="lib-cats-row" style="margin-top:6px;">${ex.categories.map(c=>`<span class="cat-pill">${escapeHtml(c)}</span>`).join('')}</div>` : ''}
+      </div>
+    </div>
+    <div class="row-buttons" style="margin-top:12px;">
+      <button class="btn btn-primary" id="useRandomExercise" data-id="${ex.id}">+ Til planlægning</button>
+      <button class="btn btn-ghost" id="rollRandomExercise">🎲 Ny tilfældig</button>
+    </div>
+  </div>`;
+}
+
 function renderLibrary(){
   let html = storageNoteHtml();
   html += `<h2 class="section-title">Tilføj øvelse</h2>
@@ -1013,6 +1056,8 @@ function renderLibrary(){
       ${categoryPickerHtml('newCatChips', [])}
       <div class="row-buttons"><button class="btn btn-primary" id="libAdd">Tilføj til bibliotek</button></div>
     </div>`;
+
+  html += renderRandomExercisePanel();
 
   if(exercises.length > 0){
     html += `<div class="card" style="padding:14px;">
@@ -1106,6 +1151,22 @@ function renderLibResults(){
 }
 
 function bindLibraryEvents(){
+  const rollBtn = view.querySelector('#rollRandomExercise');
+  if(rollBtn){
+    rollBtn.addEventListener('click', ()=>{
+      pickRandomExercise();
+      renderLibrary();
+    });
+  }
+  const useRandomBtn = view.querySelector('#useRandomExercise');
+  if(useRandomBtn){
+    useRandomBtn.addEventListener('click', ()=>{
+      pendingPlanExerciseId = useRandomBtn.dataset.id;
+      switchTab('plan');
+      showToast('Øvelse valgt – vælg dato og tidspunkt');
+    });
+  }
+
   const addForm = view.querySelector('#libAddForm');
   bindCategoryPickerEvents(addForm);
 
@@ -1846,15 +1907,15 @@ function escapeHtml(str){
 }
 
 /* ---------- tab switching ---------- */
+function switchTab(tab){
+  document.querySelectorAll('nav.tabbar button').forEach(b=>b.classList.toggle('active', b.dataset.tab === tab));
+  activeTab = tab;
+  if(activeTab !== 'plan') planEditingId = null;
+  render();
+  view.scrollTo({top:0});
+}
 document.querySelectorAll('nav.tabbar button').forEach(btn=>{
-  btn.addEventListener('click', ()=>{
-    document.querySelectorAll('nav.tabbar button').forEach(b=>b.classList.remove('active'));
-    btn.classList.add('active');
-    activeTab = btn.dataset.tab;
-    if(activeTab !== 'plan') planEditingId = null;
-    render();
-    view.scrollTo({top:0});
-  });
+  btn.addEventListener('click', ()=> switchTab(btn.dataset.tab));
 });
 
 /* ---------- date header ---------- */
