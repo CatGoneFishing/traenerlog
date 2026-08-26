@@ -368,6 +368,7 @@ let editingActivityPhoto = undefined; // temp photo state while editing an activ
 let libraryCategoryFilter = null; // selected theme filter in the Library tab, null = show all
 let librarySearch = '';           // search text in the Library tab
 let libEditingCatsId = null;      // id of the exercise whose theme editor is currently open
+let libEditingNoteId = null;      // id of the exercise whose note editor is currently open
 let manageCategoriesOpen = false; // whether the "manage themes" panel is expanded in the Library tab
 let deletedCategoryNames = [];    // lowercased default-suggestion names the user has explicitly removed
 
@@ -609,8 +610,9 @@ function renderQuickEntryForm(){
       inner += `<div class="empty" style="margin-top:10px;">Tilføj mindst én øvelse under fanen Øvelser først.</div>`;
     } else {
       inner += `<label class="field-label">Hvad øvede I lige?</label>
-      <div class="chip-select" id="quickChips">
-        ${favSort(exercises).map(ex => `<div class="chip ${quickLogSelected.includes(ex.id)?'selected':''}" data-id="${ex.id}">
+      <input type="text" id="quickExerciseSearch" placeholder="Søg efter øvelse...">
+      <div class="chip-select" id="quickChips" style="margin-top:8px;">
+        ${favSort(exercises).map(ex => `<div class="chip ${quickLogSelected.includes(ex.id)?'selected':''}" data-id="${ex.id}" data-name="${escapeHtml(ex.name.toLowerCase())}">
           ${ex.image? `<img class="chip-thumb" src="${ex.image}">` : ''}${ex.favorite?'★ ':''}${escapeHtml(ex.name)}
         </div>`).join('')}
       </div>
@@ -736,6 +738,15 @@ function bindTodayEvents(){
       });
     });
   }
+  const quickExerciseSearch = view.querySelector('#quickExerciseSearch');
+  if(quickExerciseSearch && quickChips){
+    quickExerciseSearch.addEventListener('input', ()=>{
+      const term = quickExerciseSearch.value.trim().toLowerCase();
+      quickChips.querySelectorAll('.chip').forEach(chip=>{
+        chip.style.display = (!term || chip.dataset.name.includes(term)) ? '' : 'none';
+      });
+    });
+  }
 
   const quickEntrySubmit = view.querySelector('#quickEntrySubmit');
   if(quickEntrySubmit){
@@ -850,10 +861,11 @@ function renderPlan(){
         <input type="time" id="planTime" lang="da-DK" value="${selTime}">
         <div id="planDateTimePreview" style="font-size:12px;color:var(--ink-soft);margin:2px 0 12px;"></div>
         <label class="field-label">Øvelser</label>
-        <div class="chip-select" id="planChips">
+        <input type="text" id="planExerciseSearch" placeholder="Søg efter øvelse...">
+        <div class="chip-select" id="planChips" style="margin-top:8px;">
           ${favSort(exercises).map(ex => {
             const sel = editing ? editing.exerciseIds.includes(ex.id) : false;
-            return `<div class="chip ${sel?'selected':''}" data-id="${ex.id}">${ex.image? `<img class="chip-thumb" src="${ex.image}">` : ''}${ex.favorite?'★ ':''}${escapeHtml(ex.name)}</div>`;
+            return `<div class="chip ${sel?'selected':''}" data-id="${ex.id}" data-name="${escapeHtml(ex.name.toLowerCase())}">${ex.image? `<img class="chip-thumb" src="${ex.image}">` : ''}${ex.favorite?'★ ':''}${escapeHtml(ex.name)}</div>`;
           }).join('')}
         </div>
         <div class="row-buttons">
@@ -907,6 +919,15 @@ function bindPlanEvents(){
   if(chipsEl){
     chipsEl.querySelectorAll('.chip').forEach(chip=>{
       chip.addEventListener('click', ()=> chip.classList.toggle('selected'));
+    });
+  }
+  const planExerciseSearch = view.querySelector('#planExerciseSearch');
+  if(planExerciseSearch && chipsEl){
+    planExerciseSearch.addEventListener('input', ()=>{
+      const term = planExerciseSearch.value.trim().toLowerCase();
+      chipsEl.querySelectorAll('.chip').forEach(chip=>{
+        chip.style.display = (!term || chip.dataset.name.includes(term)) ? '' : 'none';
+      });
     });
   }
   const submit = view.querySelector('#planSubmit');
@@ -1020,8 +1041,8 @@ function renderLibItem(ex){
     : `<div class="lib-photo-btn" data-add-photo="${ex.id}" title="Tilføj billede">+</div>`;
 
   const cats = ex.categories || [];
-  const isEditing = libEditingCatsId === ex.id;
-  const catsSection = isEditing
+  const isEditingCats = libEditingCatsId === ex.id;
+  const catsSection = isEditingCats
     ? `<div style="margin-top:8px;">
          ${categoryPickerHtml('editCatChips-'+ex.id, cats)}
          <div class="row-buttons" style="margin-top:8px;">
@@ -1034,11 +1055,25 @@ function renderLibItem(ex){
          <button class="cat-edit-btn" data-toggle-cats="${ex.id}">${cats.length? 'Rediger temaer' : '+ Tilføj tema'}</button>
        </div>`;
 
+  const isEditingNote = libEditingNoteId === ex.id;
+  const noteSection = isEditingNote
+    ? `<div style="margin-top:6px;">
+         <textarea id="editNoteText-${ex.id}" placeholder="Beskriv hvordan øvelsen udføres...">${escapeHtml(ex.note||'')}</textarea>
+         <div class="row-buttons" style="margin-top:6px;">
+           <button class="btn btn-primary btn-small" data-save-note="${ex.id}">Gem note</button>
+           <button class="btn btn-ghost btn-small" data-cancel-note="${ex.id}">Annuller</button>
+         </div>
+       </div>`
+    : `<div style="margin-top:2px;">
+         ${ex.note? `<div class="note">${escapeHtml(ex.note)}</div>` : ''}
+         <button class="cat-edit-btn" data-edit-note="${ex.id}">${ex.note? 'Rediger note' : '+ Tilføj note'}</button>
+       </div>`;
+
   return `<div class="lib-item">
     <div class="lib-photo-slot">${photoInner}</div>
     <div class="lib-main">
       <div class="name">${escapeHtml(ex.name)}</div>
-      ${ex.note? `<div class="note">${escapeHtml(ex.note)}</div>`: ''}
+      ${noteSection}
       ${catsSection}
     </div>
     <button class="fav-star ${ex.favorite?'active':''}" data-toggle-fav="${ex.id}" title="${ex.favorite?'Fjern favorit':'Marker som favorit'}">★</button>
@@ -1141,6 +1176,33 @@ function bindLibResultsEvents(container){
     btn.addEventListener('click', async ()=>{
       const ex = exerciseById(btn.dataset.toggleFav);
       if(ex){ ex.favorite = !ex.favorite; await saveExercises(); renderLibResults(); }
+    });
+  });
+
+  container.querySelectorAll('[data-edit-note]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      libEditingNoteId = btn.dataset.editNote;
+      renderLibResults();
+    });
+  });
+  container.querySelectorAll('[data-cancel-note]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      libEditingNoteId = null;
+      renderLibResults();
+    });
+  });
+  container.querySelectorAll('[data-save-note]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      const id = btn.dataset.saveNote;
+      const ta = document.getElementById('editNoteText-'+id);
+      const ex = exerciseById(id);
+      if(ex && ta){
+        ex.note = ta.value.trim();
+        await saveExercises();
+        showToast('Note gemt');
+      }
+      libEditingNoteId = null;
+      renderLibResults();
     });
   });
 
