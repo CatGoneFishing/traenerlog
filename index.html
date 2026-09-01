@@ -356,6 +356,8 @@ let quickEntryOpen = false;
 let quickEntryKind = null; // 'training' | 'activity' | 'diary' | 'health'
 let quickLogSelected = [];
 let quickActivityPhoto = null; // temp photo for the activity quick-entry form
+let quickEntryDate = null; // selected date for the entry being logged (set when the form opens)
+let quickEntryTime = null; // selected time for the entry being logged (set when the form opens)
 let newExercisePhoto = null; // data URL for the "add exercise" form, before saving
 let photoTargetExerciseId = null; // which existing exercise the hidden file input is currently targeting
 let logPeriod = 'week'; // 'week' | 'month' | 'year' — controls the Log tab's visual summary
@@ -515,6 +517,7 @@ function resizeImageFile(file, maxDim=480, quality=0.72){
 const uid = () => Math.random().toString(36).slice(2,10) + Date.now().toString(36).slice(-4);
 const pad = n => String(n).padStart(2,'0');
 const todayStr = () => { const d=new Date(); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; };
+const currentTimeStr = () => { const d=new Date(); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
 const dayNames = ['søn','man','tirs','ons','tors','fre','lør'];
 const monNames = ['jan','feb','mar','apr','maj','jun','jul','aug','sep','okt','nov','dec'];
 function fmtDateShort(dateStr){
@@ -607,6 +610,13 @@ function renderQuickEntryForm(){
       <div class="chip ${quickEntryKind==='health'?'selected':''}" data-kind="health">Sundhed</div>
     </div>`;
 
+  if(quickEntryKind){
+    inner += `<label class="field-label">Hvornår?</label>
+      <input type="date" id="quickEntryDate" lang="da-DK" value="${quickEntryDate}">
+      <input type="time" id="quickEntryTime" lang="da-DK" value="${quickEntryTime}" style="margin-top:8px;">
+      <div id="quickEntryDateTimePreview" style="font-size:12px;color:var(--ink-soft);margin:6px 0 4px;"></div>`;
+  }
+
   if(quickEntryKind === 'training'){
     if(exercises.length === 0){
       inner += `<div class="empty" style="margin-top:10px;">Tilføj mindst én øvelse under fanen Øvelser først.</div>`;
@@ -697,9 +707,25 @@ function renderSessionCard(s){
 
 function bindTodayEvents(){
   const openBtn = view.querySelector('#openQuickEntry');
-  if(openBtn){ openBtn.addEventListener('click', ()=>{ quickEntryOpen = true; quickEntryKind = null; renderToday(); }); }
+  if(openBtn){
+    openBtn.addEventListener('click', ()=>{
+      quickEntryOpen = true;
+      quickEntryKind = null;
+      quickEntryDate = todayStr();
+      quickEntryTime = currentTimeStr();
+      renderToday();
+    });
+  }
   const closeBtn = view.querySelector('#closeQuickEntry');
-  if(closeBtn){ closeBtn.addEventListener('click', ()=>{ quickEntryOpen = false; quickEntryKind = null; renderToday(); }); }
+  if(closeBtn){
+    closeBtn.addEventListener('click', ()=>{
+      quickEntryOpen = false;
+      quickEntryKind = null;
+      quickEntryDate = null;
+      quickEntryTime = null;
+      renderToday();
+    });
+  }
 
   const kindChips = view.querySelector('#quickKindChips');
   if(kindChips){
@@ -712,6 +738,19 @@ function bindTodayEvents(){
       });
     });
   }
+
+  const dateInput = view.querySelector('#quickEntryDate');
+  const timeInput = view.querySelector('#quickEntryTime');
+  const dtPreview = view.querySelector('#quickEntryDateTimePreview');
+  const updateDtPreview = () => {
+    if(!dtPreview || !dateInput || !timeInput) return;
+    dtPreview.textContent = (dateInput.value && timeInput.value)
+      ? `Logges som: ${formatDDMMYYYY(dateInput.value)} kl. ${timeInput.value}`
+      : '';
+  };
+  if(dateInput){ dateInput.addEventListener('input', ()=>{ quickEntryDate = dateInput.value; updateDtPreview(); }); }
+  if(timeInput){ timeInput.addEventListener('input', ()=>{ quickEntryTime = timeInput.value; updateDtPreview(); }); }
+  updateDtPreview();
 
   bindActivityTypePickerEvents(view); // handles both activity-type and health-type pickers, if present
 
@@ -753,25 +792,26 @@ function bindTodayEvents(){
   const quickEntrySubmit = view.querySelector('#quickEntrySubmit');
   if(quickEntrySubmit){
     quickEntrySubmit.addEventListener('click', async ()=>{
-      const now = new Date();
-      const time = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+      const date = quickEntryDate || todayStr();
+      const time = quickEntryTime || currentTimeStr();
+      if(!date || !time){ showToast('Vælg dato og tidspunkt'); return; }
 
       if(quickEntryKind === 'training'){
         if(quickLogSelected.length === 0){ showToast('Vælg mindst én øvelse'); return; }
         const note = view.querySelector('#quickNote').value.trim();
         sessions.push({
-          id: uid(), date: todayStr(), time,
+          id: uid(), date, time,
           exerciseIds: [...quickLogSelected], doneIds: [...quickLogSelected],
           completed: true, notes: note, completedAt: Date.now()
         });
         await saveSessions();
-        showToast('Spontan træning logget 🐾');
+        showToast('Træning logget 🐾');
       } else if(quickEntryKind === 'activity'){
         const selectedChip = view.querySelector('#quickActivityType .chip.selected');
         if(!selectedChip){ showToast('Vælg en aktivitetstype'); return; }
         const note = view.querySelector('#quickActivityNote').value.trim();
         activities.push({
-          id: uid(), date: todayStr(), time,
+          id: uid(), date, time,
           type: selectedChip.dataset.type, note, image: quickActivityPhoto || null, createdAt: Date.now()
         });
         await saveActivities();
@@ -780,7 +820,7 @@ function bindTodayEvents(){
       } else if(quickEntryKind === 'diary'){
         const text = view.querySelector('#quickDiaryText').value.trim();
         if(!text){ showToast('Skriv en note'); return; }
-        diaryEntries.push({ id: uid(), date: todayStr(), time, text, createdAt: Date.now() });
+        diaryEntries.push({ id: uid(), date, time, text, createdAt: Date.now() });
         await saveDiary();
         showToast('Note gemt 📝');
       } else if(quickEntryKind === 'health'){
@@ -790,7 +830,7 @@ function bindTodayEvents(){
         const weightKg = weightRaw ? parseFloat(weightRaw.replace(',','.')) : null;
         const note = view.querySelector('#quickHealthNote').value.trim();
         healthEntries.push({
-          id: uid(), date: todayStr(), time, type: selectedChip.dataset.type,
+          id: uid(), date, time, type: selectedChip.dataset.type,
           weightKg: (weightKg !== null && !isNaN(weightKg)) ? weightKg : null,
           note, createdAt: Date.now()
         });
@@ -800,7 +840,7 @@ function bindTodayEvents(){
         showToast('Vælg hvad du vil logge');
         return;
       }
-      quickEntryOpen = false; quickEntryKind = null; quickLogSelected = [];
+      quickEntryOpen = false; quickEntryKind = null; quickLogSelected = []; quickEntryDate = null; quickEntryTime = null;
       renderToday();
     });
   }
@@ -1398,19 +1438,23 @@ function renderLogEntries(){
   if(!list) return;
   const done = sessions.filter(s=>s.completed);
   const totalEntries = done.length + activities.length + diaryEntries.length + healthEntries.length;
+  const entryTs = (date, time) => {
+    const t = new Date(`${date}T${time || '00:00'}`).getTime();
+    return isNaN(t) ? 0 : t;
+  };
 
   let combined = [];
   if(logTypeFilter==='all' || logTypeFilter==='training'){
-    combined = combined.concat(done.map(s => ({ kind:'training', ts: s.completedAt||0, data:s })));
+    combined = combined.concat(done.map(s => ({ kind:'training', ts: entryTs(s.date, s.time), data:s })));
   }
   if(logTypeFilter==='all' || logTypeFilter==='activity'){
-    combined = combined.concat(activities.map(a => ({ kind:'activity', ts: a.createdAt||0, data:a })));
+    combined = combined.concat(activities.map(a => ({ kind:'activity', ts: entryTs(a.date, a.time), data:a })));
   }
   if(logTypeFilter==='all' || logTypeFilter==='diary'){
-    combined = combined.concat(diaryEntries.map(d => ({ kind:'diary', ts: d.createdAt||0, data:d })));
+    combined = combined.concat(diaryEntries.map(d => ({ kind:'diary', ts: entryTs(d.date, d.time), data:d })));
   }
   if(logTypeFilter==='all' || logTypeFilter==='health'){
-    combined = combined.concat(healthEntries.map(h => ({ kind:'health', ts: h.createdAt||0, data:h })));
+    combined = combined.concat(healthEntries.map(h => ({ kind:'health', ts: entryTs(h.date, h.time), data:h })));
   }
 
   const term = logSearchTerm.trim().toLowerCase();
