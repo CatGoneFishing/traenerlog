@@ -1,6 +1,6 @@
 {
-  "name": "Trænerlog",
-  "short_name": "Trænerlog",
+  "name": "Hundelog",
+  "short_name": "Hundelog",
   "description": "Planlæg og log træning, aktiviteter og sundhed for din hund.",
   "start_url": "./index.html",
   "scope": "./",
