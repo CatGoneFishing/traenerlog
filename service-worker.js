@@ -1,4 +1,4 @@
-const CACHE_NAME = 'hundelog-cache-v10';
+const CACHE_NAME = 'hundelog-cache-v12';
 const ASSETS_TO_CACHE = [
   './index.html',
   './manifest.json',

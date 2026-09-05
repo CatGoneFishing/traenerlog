@@ -189,6 +189,7 @@
     background:var(--card); border:1.5px dashed var(--brass); border-radius:14px;
     padding:12px; margin-bottom:14px; cursor:pointer; font-family:'Baloo 2',sans-serif;
     font-weight:700; font-size:14px; color:var(--brass-deep);
+    width:100%; box-sizing:border-box; appearance:none; -webkit-appearance:none;
   }
 
   .lib-item{
@@ -390,6 +391,8 @@ let planSelectedExerciseIds = [];  // module-tracked selection for the Plan form
 let planFormInitializedFor = undefined; // which planEditingId (or 'new') planSelectedExerciseIds was last set up for
 let randomExerciseId = null;      // id of the currently shown random-exercise suggestion, or null
 let pendingPlanExerciseId = null; // exercise to pre-select next time the new-session Plan form renders
+let pendingTodayExerciseId = null; // exercise to pre-select next time the Today quick-entry (training) form renders
+let addExerciseFormOpen = false;   // whether the "+ Tilføj ny øvelse" form is expanded in the Library tab
 let manageCategoriesOpen = false; // whether the "manage themes" panel is expanded in the Library tab
 let deletedCategoryNames = [];    // lowercased default-suggestion names the user has explicitly removed
 let deletedRewardTypeNames = [];  // lowercased default reward-type names the user has explicitly removed
@@ -2447,6 +2450,16 @@ function storageNoteHtml(){
 function renderToday(){
   const t = todayStr();
   const todays = sessions.filter(s => s.date === t);
+
+  if(pendingTodayExerciseId){
+    quickEntryOpen = true;
+    quickEntryKind = 'training';
+    if(!quickEntryDate) quickEntryDate = todayStr();
+    if(!quickEntryTime) quickEntryTime = currentTimeStr();
+    if(!quickLogSelected.includes(pendingTodayExerciseId)) quickLogSelected.push(pendingTodayExerciseId);
+    pendingTodayExerciseId = null;
+  }
+
   let html = storageNoteHtml();
 
   if(!quickEntryOpen){
@@ -2627,6 +2640,8 @@ function bindTodayEvents(){
       quickEntryKind = null;
       quickEntryDate = todayStr();
       quickEntryTime = currentTimeStr();
+      quickLogSelected = [];
+      quickActivityPhoto = null;
       renderToday();
     });
   }
@@ -2637,6 +2652,8 @@ function bindTodayEvents(){
       quickEntryKind = null;
       quickEntryDate = null;
       quickEntryTime = null;
+      quickLogSelected = [];
+      quickActivityPhoto = null;
       renderToday();
     });
   }
@@ -2769,6 +2786,9 @@ function bindTodayEvents(){
       const sid = btn.dataset.finish;
       const s = sessions.find(x=>x.id===sid);
       if(!s) return;
+      // If nothing was checked off individually, assume the whole planned session was done
+      // rather than logging a confusing "completed but nothing logged" entry.
+      if(s.doneIds.length === 0) s.doneIds = [...s.exerciseIds];
       s.completed = true;
       s.completedAt = Date.now();
       await saveSessions();
@@ -3125,27 +3145,6 @@ function renderRandomExercisePanel(){
 
 function renderLibrary(){
   let html = storageNoteHtml();
-  html += `<h2 class="section-title">Tilføj øvelse</h2>
-    <div class="card" id="libAddForm">
-      <label class="field-label">Navn / kommando</label>
-      <input type="text" id="libName" placeholder="fx. Bliv, Kom, Ved fod">
-      <label class="field-label">Note (valgfri)</label>
-      <input type="text" id="libNote" placeholder="fx. Hold i 10 sekunder">
-      <label class="field-label">Billede (valgfri)</label>
-      <div>
-        ${newExercisePhoto
-          ? `<img class="new-photo-preview" src="${newExercisePhoto}">
-             <div><button class="btn btn-ghost btn-small" id="libNewPhotoRemove" style="margin-top:8px;">Fjern billede</button></div>`
-          : `<button class="btn btn-ghost btn-small" id="libNewPhotoPick">Vælg billede</button>`
-        }
-        <input type="file" accept="image/*" id="libNewPhotoInput" style="display:none;">
-      </div>
-      <label class="field-label">Temaer (valgfri)</label>
-      ${categoryPickerHtml('newCatChips', [])}
-      <div class="row-buttons"><button class="btn btn-primary" id="libAdd">Tilføj til bibliotek</button></div>
-    </div>`;
-
-  html += renderRandomExercisePanel();
 
   if(exercises.length > 0){
     html += `<div class="card" style="padding:14px;">
@@ -3180,6 +3179,30 @@ function renderLibrary(){
         <input type="checkbox" id="showArchivedToggle" ${showArchivedExercises?'checked':''}>
         Vis skjulte øvelser
       </label>
+    </div>`;
+  }
+
+  html += renderRandomExercisePanel();
+
+  html += `<button class="quick-log-toggle" id="toggleAddExerciseForm">${addExerciseFormOpen ? 'Skjul' : '+ Tilføj ny øvelse'}</button>`;
+  if(addExerciseFormOpen){
+    html += `<div class="card" id="libAddForm">
+      <label class="field-label">Navn / kommando</label>
+      <input type="text" id="libName" placeholder="fx. Bliv, Kom, Ved fod">
+      <label class="field-label">Note (valgfri)</label>
+      <input type="text" id="libNote" placeholder="fx. Hold i 10 sekunder">
+      <label class="field-label">Billede (valgfri)</label>
+      <div>
+        ${newExercisePhoto
+          ? `<img class="new-photo-preview" src="${newExercisePhoto}">
+             <div><button class="btn btn-ghost btn-small" id="libNewPhotoRemove" style="margin-top:8px;">Fjern billede</button></div>`
+          : `<button class="btn btn-ghost btn-small" id="libNewPhotoPick">Vælg billede</button>`
+        }
+        <input type="file" accept="image/*" id="libNewPhotoInput" style="display:none;">
+      </div>
+      <label class="field-label">Temaer (valgfri)</label>
+      ${categoryPickerHtml('newCatChips', [])}
+      <div class="row-buttons"><button class="btn btn-primary" id="libAdd">Tilføj til bibliotek</button></div>
     </div>`;
   }
 
@@ -3264,6 +3287,10 @@ function renderLibItem(ex){
        </div>`
     : '';
   const detailsToggle = `<button class="cat-edit-btn" data-toggle-details="${ex.id}" style="margin-top:6px;">${isDetailsOpen? 'Skjul detaljer ▴' : 'Vis detaljer ▾'}</button>`;
+  const quickAddRow = `<div class="row-buttons" style="margin-top:10px;">
+    <button class="btn btn-ghost btn-small" data-quick-plan="${ex.id}">+ Planlæg</button>
+    <button class="btn btn-ghost btn-small" data-quick-today="${ex.id}">+ I dag</button>
+  </div>`;
 
   return `<div class="lib-item ${ex.archived?'archived':''}">
     <div class="lib-photo-slot">${photoInner}</div>
@@ -3273,6 +3300,7 @@ function renderLibItem(ex){
       ${catsSection}
       ${detailsToggle}
       ${detailsSection}
+      ${quickAddRow}
     </div>
     <button class="fav-star ${ex.favorite?'active':''}" data-toggle-fav="${ex.id}" title="${ex.favorite?'Fjern favorit':'Marker som favorit'}">★</button>
     <button class="lib-icon-btn ${ex.archived?'active':''}" data-toggle-archive="${ex.id}" title="${ex.archived?'Vis øvelse igen':'Skjul øvelse (arkivér)'}">
@@ -3330,37 +3358,47 @@ function bindLibraryEvents(){
     });
   }
 
-  const addForm = view.querySelector('#libAddForm');
-  bindCategoryPickerEvents(addForm);
-
-  addForm.querySelector('#libAdd').addEventListener('click', async ()=>{
-    const nameEl = view.querySelector('#libName');
-    const noteEl = view.querySelector('#libNote');
-    const name = nameEl.value.trim();
-    if(!name){ showToast('Skriv et navn på øvelsen'); return; }
-    const categories = Array.from(view.querySelectorAll('#newCatChips .chip.selected')).map(c=>c.dataset.cat);
-    exercises.push({
-      id: uid(), name, note: noteEl.value.trim(), image: newExercisePhoto || null, categories,
-      favorite: false, archived: false,
-      forloeb: null, difficulty: null, rewardTypes: [], status: null, priority: null
+  const toggleAddExerciseForm = view.querySelector('#toggleAddExerciseForm');
+  if(toggleAddExerciseForm){
+    toggleAddExerciseForm.addEventListener('click', ()=>{
+      addExerciseFormOpen = !addExerciseFormOpen;
+      renderLibrary();
     });
-    newExercisePhoto = null;
-    await saveExercises();
-    showToast('Øvelse tilføjet');
-    renderLibrary();
-  });
+  }
 
-  const newPhotoInput = view.querySelector('#libNewPhotoInput');
-  const newPhotoPick = view.querySelector('#libNewPhotoPick');
-  if(newPhotoPick){ newPhotoPick.addEventListener('click', ()=> newPhotoInput.click()); }
-  const newPhotoRemove = view.querySelector('#libNewPhotoRemove');
-  if(newPhotoRemove){ newPhotoRemove.addEventListener('click', ()=>{ newExercisePhoto = null; renderLibrary(); }); }
-  newPhotoInput.addEventListener('change', async (e)=>{
-    const file = e.target.files[0];
-    if(!file) return;
-    try{ newExercisePhoto = await resizeImageFile(file); renderLibrary(); }
-    catch(err){ showToast('Kunne ikke læse billedet'); }
-  });
+  const addForm = view.querySelector('#libAddForm');
+  if(addForm){
+    bindCategoryPickerEvents(addForm);
+
+    addForm.querySelector('#libAdd').addEventListener('click', async ()=>{
+      const nameEl = view.querySelector('#libName');
+      const noteEl = view.querySelector('#libNote');
+      const name = nameEl.value.trim();
+      if(!name){ showToast('Skriv et navn på øvelsen'); return; }
+      const categories = Array.from(view.querySelectorAll('#newCatChips .chip.selected')).map(c=>c.dataset.cat);
+      exercises.push({
+        id: uid(), name, note: noteEl.value.trim(), image: newExercisePhoto || null, categories,
+        favorite: false, archived: false,
+        forloeb: null, difficulty: null, rewardTypes: [], status: null, priority: null
+      });
+      newExercisePhoto = null;
+      await saveExercises();
+      showToast('Øvelse tilføjet');
+      renderLibrary();
+    });
+
+    const newPhotoInput = view.querySelector('#libNewPhotoInput');
+    const newPhotoPick = view.querySelector('#libNewPhotoPick');
+    if(newPhotoPick){ newPhotoPick.addEventListener('click', ()=> newPhotoInput.click()); }
+    const newPhotoRemove = view.querySelector('#libNewPhotoRemove');
+    if(newPhotoRemove){ newPhotoRemove.addEventListener('click', ()=>{ newExercisePhoto = null; renderLibrary(); }); }
+    newPhotoInput.addEventListener('change', async (e)=>{
+      const file = e.target.files[0];
+      if(!file) return;
+      try{ newExercisePhoto = await resizeImageFile(file); renderLibrary(); }
+      catch(err){ showToast('Kunne ikke læse billedet'); }
+    });
+  }
 
   const searchInput = view.querySelector('#libSearchInput');
   if(searchInput){
@@ -3503,6 +3541,21 @@ function bindLibraryEvents(){
 function bindLibResultsEvents(container){
   bindCategoryPickerEvents(container);
   bindActivityTypePickerEvents(container); // handles the single-select Forløb/Sværhedsgrad/Status/Prioritet pickers
+
+  container.querySelectorAll('[data-quick-plan]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      pendingPlanExerciseId = btn.dataset.quickPlan;
+      switchTab('plan');
+      showToast('Øvelse valgt – vælg dato og tidspunkt');
+    });
+  });
+  container.querySelectorAll('[data-quick-today]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      pendingTodayExerciseId = btn.dataset.quickToday;
+      switchTab('today');
+      showToast('Øvelse tilføjet til dagens træning');
+    });
+  });
 
   container.querySelectorAll('[data-toggle-details]').forEach(btn=>{
     btn.addEventListener('click', ()=>{
@@ -3679,6 +3732,12 @@ function bindLibResultsEvents(container){
         s.exerciseIds = s.exerciseIds.filter(x=>x!==id);
         s.doneIds = s.doneIds.filter(x=>x!==id);
       });
+      // Clean up any lingering reference in other tabs' in-progress selections
+      quickLogSelected = quickLogSelected.filter(x=>x!==id);
+      planSelectedExerciseIds = planSelectedExerciseIds.filter(x=>x!==id);
+      if(randomExerciseId === id) randomExerciseId = null;
+      if(pendingPlanExerciseId === id) pendingPlanExerciseId = null;
+      if(pendingTodayExerciseId === id) pendingTodayExerciseId = null;
       await saveExercises();
       await saveSessions();
       renderLibResults();
